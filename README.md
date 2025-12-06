@@ -21,12 +21,29 @@ A Python package that provides persistent procedural memory and safe code execut
 - **MLflow Observability**: Automatic tracing and experiment tracking
 - **Production Ready**: 99.38% test coverage, comprehensive error handling, backward-compatible storage versioning
 
+## Requirements
+
+### Core Features (No API Key Required)
+
+The following features work out-of-the-box without any API keys:
+
+- **Procedural Memory**: Uses local `sentence-transformers` for embeddings
+- **RLM Context**: Document inspection (grep, peek, head, tail) and safe code execution
+- **FAISS Indexing**: Optional performance optimization for large-scale retrieval
+
+### Optional Features (API Key Required)
+
+- **DSPy Autonomous Planning**: Requires OpenAI API key or compatible language model provider
+  ```bash
+  export OPENAI_API_KEY="sk-..."
+  ```
+
 ## Quick Start
 
 ### Installation
 
 ```bash
-# Basic installation
+# Basic installation (works without API key)
 pip install rec-praxis-rlm
 
 # With all optional dependencies (FAISS, OpenAI, async support)
