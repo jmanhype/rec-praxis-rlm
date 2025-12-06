@@ -4,8 +4,10 @@
 
 A Python package that provides persistent procedural memory and safe code execution capabilities for DSPy 3.0 autonomous agents, enabling experience-based learning and programmatic document manipulation.
 
+[![PyPI version](https://img.shields.io/pypi/v/rec-praxis-rlm.svg)](https://pypi.org/project/rec-praxis-rlm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Test Coverage](https://img.shields.io/badge/coverage-99.38%25-brightgreen.svg)](https://github.com/your-org/rec-praxis-rlm)
+[![Tests](https://github.com/jmanhype/rec-praxis-rlm/actions/workflows/test.yml/badge.svg)](https://github.com/jmanhype/rec-praxis-rlm/actions/workflows/test.yml)
+[![Test Coverage](https://img.shields.io/badge/coverage-99.38%25-brightgreen.svg)](https://github.com/jmanhype/rec-praxis-rlm)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

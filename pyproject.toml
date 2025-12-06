@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rec-praxis-rlm"
-version = "0.1.0"
+version = "0.1.1"
 description = "Procedural memory + REPL context package with DSPy 3.0 integration for autonomous agents"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "jmanhype", email = "jmanhype@users.noreply.github.com"}
 ]
 keywords = ["dspy", "procedural-memory", "repl", "autonomous-agents", "mlflow"]
 classifiers = [
@@ -51,10 +51,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/rec-praxis-rlm"
-Documentation = "https://github.com/your-org/rec-praxis-rlm#readme"
-Repository = "https://github.com/your-org/rec-praxis-rlm"
-"Bug Tracker" = "https://github.com/your-org/rec-praxis-rlm/issues"
+Homepage = "https://github.com/jmanhype/rec-praxis-rlm"
+Documentation = "https://github.com/jmanhype/rec-praxis-rlm#readme"
+Repository = "https://github.com/jmanhype/rec-praxis-rlm"
+"Bug Tracker" = "https://github.com/jmanhype/rec-praxis-rlm/issues"
+PyPI = "https://pypi.org/project/rec-praxis-rlm/"
 
 [tool.setuptools.packages.find]
 where = ["."]

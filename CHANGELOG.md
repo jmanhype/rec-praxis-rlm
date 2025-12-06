@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-12-06
+
+### Fixed
+- Updated GitHub repository URLs to correct location: `jmanhype/rec-praxis-rlm`
+- Fixed author information in package metadata
+- Added PyPI link to project URLs
+
+### Added
+- GitHub Actions workflows for automated testing (Python 3.10, 3.11, 3.12)
+- GitHub Actions workflow for automated PyPI publishing on releases
+- Added PyPI version badge to README
+- Added test status badge to README
+
+### Changed
+- Bumped version to 0.1.1 to reflect corrected metadata
+
+## [0.1.0] - 2025-12-06
+
 ### Added
 - Initial public release of rec-praxis-rlm
 - Procedural memory with hybrid similarity scoring (environmental + goal embeddings)
