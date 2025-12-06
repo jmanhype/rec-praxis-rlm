@@ -1,0 +1,151 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rec-praxis-rlm"
+version = "0.1.0"
+description = "Procedural memory + REPL context package with DSPy 3.0 integration for autonomous agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["dspy", "procedural-memory", "repl", "autonomous-agents", "mlflow"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "dspy-ai>=3.0.4",
+    "pydantic>=2.0",
+    "sentence-transformers>=2.2",
+    "jsonlines>=3.0",
+    "mlflow>=3.0",
+]
+
+[project.optional-dependencies]
+all = [
+    "openai>=1.0",
+    "aiofiles>=23.0",
+    "faiss-cpu>=1.7",
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=0.21",
+    "mypy>=1.5",
+    "ruff>=0.1",
+    "black>=23.0",
+    "bandit>=1.7",
+    "pdoc>=14.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/rec-praxis-rlm"
+Documentation = "https://github.com/your-org/rec-praxis-rlm#readme"
+Repository = "https://github.com/your-org/rec-praxis-rlm"
+"Bug Tracker" = "https://github.com/your-org/rec-praxis-rlm/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rec_praxis_rlm*"]
+exclude = ["tests*", "examples*", "docs*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests (>1s)",
+]
+
+[tool.coverage.run]
+source = ["rec_praxis_rlm"]
+branch = true
+omit = [
+    "tests/*",
+    "examples/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unreachable = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+
+[[tool.mypy.overrides]]
+module = [
+    "dspy.*",
+    "sentence_transformers.*",
+    "jsonlines.*",
+    "mlflow.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "F",   # Pyflakes
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "PT",  # flake8-pytest-style
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PT009", "PT027"]  # Allow pytest fixtures without type hints
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312", "py313"]

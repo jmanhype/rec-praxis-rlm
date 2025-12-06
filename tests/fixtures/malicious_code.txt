@@ -1,0 +1,62 @@
+# Malicious code samples for testing sandbox security
+# Each line represents a prohibited operation that should be blocked
+
+# Import attempts
+import os
+import sys
+import socket
+import subprocess
+from os import system
+
+# __import__ function
+__import__('os')
+__import__('sys')
+
+# eval/exec/compile
+eval("print('malicious')")
+exec("import os; os.system('ls')")
+compile("import sys", "<string>", "exec")
+
+# File system access
+open('/etc/passwd', 'r')
+open('sensitive.txt', 'w')
+with open('file.txt') as f: pass
+
+# os module access (if imported)
+os.system('rm -rf /')
+os.environ['PATH']
+os.listdir('/')
+
+# sys module access (if imported)
+sys.exit(1)
+sys.argv
+sys.modules
+
+# socket/network access
+socket.socket()
+socket.gethostname()
+
+# subprocess
+subprocess.run(['ls'])
+subprocess.Popen(['cat', '/etc/passwd'])
+
+# Privileged attribute access
+obj.__class__
+obj.__globals__
+obj.__builtins__
+obj.__dict__
+obj.__code__
+
+# Type manipulation
+type.__subclasses__()
+object.__subclasses__()
+
+# Built-in function abuse (context-dependent)
+globals()
+locals()
+vars()
+dir()
+
+# File descriptor manipulation
+__file__
+__name__ = 'malicious'

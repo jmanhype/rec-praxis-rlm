@@ -1,0 +1,31 @@
+2025-12-03 10:15:23 INFO Server started on port 8000
+2025-12-03 10:15:45 INFO User login: user@example.com
+2025-12-03 10:16:12 ERROR Database timeout on query: SELECT * FROM orders WHERE status='pending'
+2025-12-03 10:16:15 WARN Retrying database connection (attempt 1/3)
+2025-12-03 10:16:20 ERROR Database timeout on query: SELECT * FROM orders WHERE status='pending'
+2025-12-03 10:16:22 WARN Retrying database connection (attempt 2/3)
+2025-12-03 10:16:25 ERROR Database timeout on query: SELECT * FROM orders WHERE status='pending'
+2025-12-03 10:16:28 ERROR Max retries exceeded, returning error to client
+2025-12-03 10:17:00 INFO User logout: user@example.com
+2025-12-03 10:17:15 INFO User login: admin@example.com
+2025-12-03 10:18:30 INFO Database connection pool expanded to 20 connections
+2025-12-03 10:19:45 ERROR Connection refused to cache server at localhost:6379
+2025-12-03 10:19:50 WARN Cache unavailable, falling back to database queries
+2025-12-03 10:20:10 INFO Cache connection restored
+2025-12-03 10:21:23 ERROR Unhandled exception in request handler: division by zero
+2025-12-03 10:21:23 ERROR Traceback (most recent call last):
+2025-12-03 10:21:23 ERROR   File "/app/handlers.py", line 42, in process_request
+2025-12-03 10:21:23 ERROR     result = total / count
+2025-12-03 10:21:23 ERROR ZeroDivisionError: division by zero
+2025-12-03 10:22:00 INFO Request completed: GET /api/health - 200 OK - 15ms
+2025-12-03 10:23:15 WARN High memory usage detected: 85% of available RAM
+2025-12-03 10:24:30 INFO Garbage collection completed, freed 1.2GB
+2025-12-03 10:25:45 ERROR Failed to send notification email: SMTP timeout
+2025-12-03 10:26:00 INFO Email retry scheduled for 10:31:00
+2025-12-03 10:27:15 INFO Background job started: data_export_job_12345
+2025-12-03 10:28:30 INFO Background job completed: data_export_job_12345 - 75s elapsed
+2025-12-03 10:29:45 ERROR API rate limit exceeded for client 192.168.1.100
+2025-12-03 10:30:00 WARN Client 192.168.1.100 blocked for 60 seconds
+2025-12-03 10:31:00 INFO Email notification sent successfully (retry)
+2025-12-03 10:32:15 INFO User logout: admin@example.com
+2025-12-03 10:33:30 INFO Server health check passed - all systems operational

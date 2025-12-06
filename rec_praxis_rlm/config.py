@@ -1,0 +1,193 @@
+"""Configuration models for rec_praxis_rlm package."""
+
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field, model_validator
+
+# Default maximum output characters for safe code execution
+# Prevents excessive memory usage from unbounded output
+DEFAULT_MAX_OUTPUT_CHARS = 10000
+
+
+class MemoryConfig(BaseModel):
+    """Configuration for ProceduralMemory.
+
+    Attributes:
+        storage_path: Path to JSONL file for persistent storage
+        top_k: Number of top experiences to retrieve
+        similarity_threshold: Minimum similarity score (0.0-1.0)
+        env_weight: Weight for environmental feature similarity (0.0-1.0)
+        goal_weight: Weight for goal similarity (0.0-1.0)
+        require_success: If True, only retrieve successful experiences
+        embedding_model: Name of sentence-transformers model
+        embedding_api_fallback: API provider for embedding fallback (openai, cohere, voyage)
+        result_size_limit: Maximum size of result string in bytes
+    """
+
+    storage_path: str = Field(
+        default="./memory.jsonl",
+        description="Path to JSONL file for persistent storage",
+    )
+    top_k: int = Field(
+        default=6,
+        ge=1,
+        le=100,
+        description="Number of top experiences to retrieve",
+    )
+    similarity_threshold: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Minimum similarity score",
+    )
+    env_weight: float = Field(
+        default=0.6,
+        ge=0.0,
+        le=1.0,
+        description="Weight for environmental feature similarity",
+    )
+    goal_weight: float = Field(
+        default=0.4,
+        ge=0.0,
+        le=1.0,
+        description="Weight for goal similarity",
+    )
+    require_success: bool = Field(
+        default=False,
+        description="If True, only retrieve successful experiences",
+    )
+    embedding_model: str = Field(
+        default="sentence-transformers/all-MiniLM-L6-v2",
+        description="Name of sentence-transformers model",
+    )
+    embedding_api_fallback: Optional[str] = Field(
+        default=None,
+        description="API provider for embedding fallback",
+    )
+    result_size_limit: int = Field(
+        default=50000,
+        description="Maximum size of result string in bytes",
+    )
+
+    @model_validator(mode="after")
+    def validate_weight_sum(self) -> "MemoryConfig":
+        """Validate that env_weight + goal_weight sum to 1.0."""
+        weight_sum = self.env_weight + self.goal_weight
+        if abs(weight_sum - 1.0) > 0.001:  # Allow small floating point error
+            raise ValueError(f"env_weight + goal_weight must sum to 1.0, got {weight_sum:.3f}")
+        return self
+
+
+class ReplConfig(BaseModel):
+    """Configuration for RLMContext.
+
+    Attributes:
+        max_output_chars: Maximum characters to capture from code execution
+        max_search_matches: Maximum number of search results to return
+        search_context_chars: Number of context characters before/after match
+        execution_timeout_seconds: Timeout for safe code execution
+        enable_sandbox: If True, use sandboxed execution (recommended)
+        log_executions: If True, log all code executions for audit trail
+        allowed_builtins: List of allowed built-in functions
+    """
+
+    max_output_chars: int = Field(
+        default=DEFAULT_MAX_OUTPUT_CHARS,
+        description="Maximum characters to capture from code execution",
+    )
+    max_search_matches: int = Field(
+        default=100,
+        description="Maximum number of search results to return",
+    )
+    search_context_chars: int = Field(
+        default=200,
+        description="Number of context characters before/after match",
+    )
+    execution_timeout_seconds: float = Field(
+        default=5.0,
+        ge=0.1,
+        le=60.0,
+        description="Timeout for safe code execution",
+    )
+    enable_sandbox: bool = Field(
+        default=True,
+        description="If True, use sandboxed execution",
+    )
+    log_executions: bool = Field(
+        default=True,
+        description="If True, log all code executions for audit trail",
+    )
+    allowed_builtins: list[str] = Field(
+        default_factory=lambda: [
+            "len",
+            "range",
+            "sum",
+            "max",
+            "min",
+            "abs",
+            "round",
+            "sorted",
+            "enumerate",
+            "zip",
+            "map",
+            "filter",
+            "all",
+            "any",
+            "str",
+            "int",
+            "float",
+            "bool",
+            "list",
+            "dict",
+            "set",
+            "tuple",
+        ],
+        description="List of allowed built-in functions",
+    )
+
+
+class PlannerConfig(BaseModel):
+    """Configuration for PraxisRLMPlanner.
+
+    Attributes:
+        lm_model: Language model identifier (e.g., 'openai/gpt-4o-mini')
+        temperature: Sampling temperature (0.0 = deterministic, 2.0 = very random)
+        max_iters: Maximum number of ReAct iterations
+        enable_mlflow_tracing: If True, enable MLflow automatic tracing
+        log_traces_from_compile: If True, log optimizer compilation traces
+        optimizer: Optimizer to use (miprov2, simba, grpo, gepa)
+        optimizer_auto_level: Optimizer automation level (light, medium, heavy)
+    """
+
+    lm_model: str = Field(
+        default="openai/gpt-4o-mini",
+        description="Language model identifier",
+    )
+    temperature: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=2.0,
+        description="Sampling temperature",
+    )
+    max_iters: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description="Maximum number of ReAct iterations",
+    )
+    enable_mlflow_tracing: bool = Field(
+        default=True,
+        description="If True, enable MLflow automatic tracing",
+    )
+    log_traces_from_compile: bool = Field(
+        default=False,
+        description="If True, log optimizer compilation traces",
+    )
+    optimizer: str = Field(
+        default="miprov2",
+        description="Optimizer to use",
+    )
+    optimizer_auto_level: Literal["light", "medium", "heavy"] = Field(
+        default="medium",
+        description="Optimizer automation level",
+    )

@@ -1,0 +1,9 @@
+theme: jekyll-theme-cayman
+title: Spec Kit
+description: Specification-Driven Development with Beads Integration
+show_downloads: true
+github:
+  repository_url: https://github.com/jmanhype/speckit
+  owner_name: jmanhype
+  owner_url: https://github.com/jmanhype
+  is_project_page: true
