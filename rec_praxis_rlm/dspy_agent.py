@@ -15,7 +15,7 @@ from rec_praxis_rlm.telemetry import emit_event
 # Type stubs for optional dependencies
 if TYPE_CHECKING:
     import dspy
-    from dspy.primitives import ReAct
+    from dspy import ReAct
     import mlflow
     import mlflow.dspy
 else:
@@ -23,7 +23,7 @@ else:
     # This allows tests to mock it
     try:
         import dspy
-        from dspy.primitives import ReAct
+        from dspy import ReAct
     except ImportError:
         dspy = None  # type: ignore[assignment]
         ReAct = None  # type: ignore[assignment,misc]
@@ -77,8 +77,13 @@ class PraxisRLMPlanner:
         # Create initial tool list with memory recall
         self._tools: list[Callable] = [create_recall_tool(memory)]
 
-        # Initialize ReAct agent
-        self._agent = ReAct(tools=self._tools, max_iters=config.max_iters)
+        # Initialize ReAct agent with signature
+        # DSPy 3.0 requires a signature string: "input_field -> output_field"
+        self._agent = ReAct(
+            signature="question -> answer",
+            tools=self._tools,
+            max_iters=config.max_iters
+        )
 
         # Initialize ThreadPoolExecutor for async operations
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="planner-async")
@@ -101,7 +106,11 @@ class PraxisRLMPlanner:
         self._tools.extend([search_tool, exec_tool])
 
         # Reinitialize agent with updated tools
-        self._agent = ReAct(tools=self._tools, max_iters=self.config.max_iters)
+        self._agent = ReAct(
+            signature="question -> answer",
+            tools=self._tools,
+            max_iters=self.config.max_iters
+        )
 
     def plan(self, goal: str, env_features: list[str]) -> str:
         """Generate a plan for the given goal using ReAct reasoning.

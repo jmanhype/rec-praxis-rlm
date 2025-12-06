@@ -33,10 +33,11 @@ The following features work out-of-the-box without any API keys:
 
 ### Optional Features (API Key Required)
 
-- **DSPy Autonomous Planning**: Requires OpenAI API key or compatible language model provider
-  ```bash
-  export OPENAI_API_KEY="sk-..."
-  ```
+- **DSPy Autonomous Planning**: Requires an API key from one of these providers:
+  - **Groq** (recommended - fast and free): `export GROQ_API_KEY="gsk-..."`
+  - **OpenAI**: `export OPENAI_API_KEY="sk-..."`
+  - **OpenRouter** (access to many models): `export OPENROUTER_API_KEY="sk-or-..."`
+  - Any LiteLLM-supported provider
 
 ## Quick Start
 
@@ -147,10 +148,28 @@ from rec_praxis_rlm.config import PlannerConfig, MemoryConfig
 
 # Initialize memory and planner
 memory = ProceduralMemory(MemoryConfig())
+
+# Option 1: Use Groq (fast, free API)
+import os
+os.environ["GROQ_API_KEY"] = "gsk-..."
 planner = PraxisRLMPlanner(
     memory=memory,
-    config=PlannerConfig(lm_model="openai/gpt-4o-mini")
+    config=PlannerConfig(lm_model="groq/llama-3.3-70b-versatile")
 )
+
+# Option 2: Use OpenAI
+# os.environ["OPENAI_API_KEY"] = "sk-..."
+# planner = PraxisRLMPlanner(
+#     memory=memory,
+#     config=PlannerConfig(lm_model="openai/gpt-4o-mini")
+# )
+
+# Option 3: Use OpenRouter (access to many models)
+# os.environ["OPENROUTER_API_KEY"] = "sk-or-..."
+# planner = PraxisRLMPlanner(
+#     memory=memory,
+#     config=PlannerConfig(lm_model="openrouter/meta-llama/llama-3.2-3b-instruct:free")
+# )
 
 # Add context for document inspection
 from rec_praxis_rlm.rlm import RLMContext
@@ -214,6 +233,69 @@ print(answer)
 | Document grep (10MB) | <500ms | With ReDoS protection |
 | Safe code execution | <100ms | Sandboxed environment |
 | Memory loading (10k exp) | <1s | With lazy loading |
+
+## Supported LLM Providers
+
+For DSPy autonomous planning, rec-praxis-rlm supports any LiteLLM-compatible provider:
+
+### Groq (Recommended)
+Fast, free API with high rate limits.
+
+```python
+import os
+os.environ["GROQ_API_KEY"] = "gsk-..."
+
+planner = PraxisRLMPlanner(
+    memory=memory,
+    config=PlannerConfig(lm_model="groq/llama-3.3-70b-versatile")
+)
+```
+
+**Available models**: `llama-3.3-70b-versatile`, `mixtral-8x7b-32768`, `gemma2-9b-it`
+
+### OpenAI
+Industry standard with highest quality models.
+
+```python
+import os
+os.environ["OPENAI_API_KEY"] = "sk-..."
+
+planner = PraxisRLMPlanner(
+    memory=memory,
+    config=PlannerConfig(lm_model="openai/gpt-4o-mini")
+)
+```
+
+**Available models**: `gpt-4o-mini`, `gpt-4o`, `gpt-4-turbo`, `gpt-3.5-turbo`
+
+### OpenRouter
+Access to 200+ models from multiple providers.
+
+```python
+import os
+os.environ["OPENROUTER_API_KEY"] = "sk-or-..."
+
+planner = PraxisRLMPlanner(
+    memory=memory,
+    config=PlannerConfig(lm_model="openrouter/meta-llama/llama-3.2-3b-instruct:free")
+)
+```
+
+**Available models**: See [OpenRouter models](https://openrouter.ai/models)
+
+### Other Providers
+Any LiteLLM-supported provider works: Anthropic, Cohere, Azure, AWS Bedrock, etc.
+
+```python
+# Anthropic Claude
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
+planner = PraxisRLMPlanner(
+    memory=memory,
+    config=PlannerConfig(lm_model="anthropic/claude-3-5-sonnet-20241022")
+)
+```
+
+See [LiteLLM providers](https://docs.litellm.ai/docs/providers) for full list.
 
 ## Configuration
 

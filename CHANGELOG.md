@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Clear "Requirements" section in README documenting what works without API keys
+- Comprehensive "Supported LLM Providers" section with examples for Groq, OpenAI, OpenRouter, and others
+- Multi-provider examples in DSPy autonomous planning quickstart
+- Verified Groq integration (llama-3.3-70b-versatile model)
+- Documentation highlighting Groq as recommended provider (fast, free)
+
+### Fixed
+- Updated DSPy 3.0 ReAct API compatibility (now requires signature parameter)
+- Fixed import path for ReAct (moved from dspy.primitives to dspy directly in DSPy 3.0)
 
 ## [0.1.1] - 2025-12-06
 
