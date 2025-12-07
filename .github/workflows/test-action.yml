@@ -1,0 +1,51 @@
+name: Test rec-praxis-action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-our-action:
+    name: Test rec-praxis-action on this repo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run rec-praxis-action (All Scans)
+        id: scan
+        uses: jmanhype/rec-praxis-action@v1
+        with:
+          scan-type: 'all'
+          severity: 'MEDIUM'
+          fail-on: 'CRITICAL'
+          format: 'json'
+        continue-on-error: true
+
+      - name: Display Results
+        if: always()
+        run: |
+          echo "### Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Total findings: ${{ steps.scan.outputs.total-findings }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Blocking findings: ${{ steps.scan.outputs.blocking-findings }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Results file: ${{ steps.scan.outputs.results-file }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Scan Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rec-praxis-scan-results
+          path: |
+            *.json
+            *.toon
+
+      - name: Test TOON Format
+        uses: jmanhype/rec-praxis-action@v1
+        with:
+          scan-type: 'review'
+          severity: 'HIGH'
+          format: 'toon'
+        continue-on-error: true
