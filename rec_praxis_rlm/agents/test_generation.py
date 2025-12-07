@@ -27,7 +27,36 @@ except ImportError:
     Coverage = None  # type: ignore
     FnmatchMatcher = None  # type: ignore
 
+try:
+    import dspy
+except ImportError:
+    dspy = None  # type: ignore
+
 from rec_praxis_rlm import ProceduralMemory, Experience, MemoryConfig, RLMContext
+
+
+# DSPy Signature for intelligent test generation
+if dspy is not None:
+    class GeneratePytestTest(dspy.Signature):
+        """Generate a complete pytest test with assertions for an uncovered function.
+
+        Analyze the function's purpose, parameters, and expected behavior to create
+        comprehensive test cases including:
+        - Happy path tests with typical inputs
+        - Edge case tests (boundary values, empty inputs, None, etc.)
+        - Error case tests (invalid inputs, exceptions)
+        - Property-based invariants when applicable
+
+        Generate actual assertions, not TODO/pass stubs.
+        """
+
+        function_name: str = dspy.InputField(desc="Name of the function to test")
+        function_source: str = dspy.InputField(desc="Source code of the function including signature and docstring")
+        class_name: Optional[str] = dspy.InputField(desc="Class name if function is a method (None otherwise)", default=None)
+        similar_test_patterns: str = dspy.InputField(desc="Similar successful test patterns from memory", default="")
+
+        test_code: str = dspy.OutputField(desc="Complete pytest test code with imports, test functions, and assertions")
+        test_reasoning: str = dspy.OutputField(desc="Explanation of test strategy and coverage approach")
 
 
 @dataclass
