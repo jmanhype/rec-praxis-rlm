@@ -13,6 +13,7 @@ A Python package that provides persistent procedural memory and safe code execut
 
 ## Features
 
+### Core Capabilities
 - **Procedural Memory**: Store and retrieve agent experiences with hybrid similarity scoring (environmental + goal embeddings)
 - **FAISS Indexing**: 10-100x faster retrieval at scale (>10k experiences)
 - **RLM Context**: Programmatic document inspection (grep, peek, head, tail) with ReDoS protection
@@ -20,6 +21,13 @@ A Python package that provides persistent procedural memory and safe code execut
 - **DSPy 3.0 Integration**: Autonomous planning with ReAct agents and integrated tools
 - **MLflow Observability**: Automatic tracing and experiment tracking
 - **Production Ready**: 99.38% test coverage, comprehensive error handling, backward-compatible storage versioning
+
+### IDE Integrations & Developer Tools (v0.4.0+)
+- **Pre-commit Hooks**: Automated code review, security audit, and dependency scanning before git commits
+- **VS Code Extension**: Real-time inline diagnostics with procedural memory-powered suggestions
+- **GitHub Actions**: CI/CD workflows for automated security scanning on pull requests
+- **CLI Tools**: Command-line interface for integration into any development workflow
+- **Learning from Fixes**: Agents remember and apply successful code improvements across sessions
 
 ## Requirements
 
@@ -497,6 +505,107 @@ result = planner.plan(goal="...", env_features=[...])
 # mlflow ui --port 5000
 ```
 
+## IDE Integrations & Developer Tools
+
+### Pre-commit Hooks
+
+Automatically review code, audit security, and scan dependencies before every commit:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/jmanhype/rec-praxis-rlm
+    rev: v0.4.0
+    hooks:
+      - id: rec-praxis-review      # Code review (fail on HIGH+)
+      - id: rec-praxis-audit        # Security audit (fail on CRITICAL)
+      - id: rec-praxis-deps         # Dependency & secret scan
+```
+
+Install and run:
+
+```bash
+pip install pre-commit rec-praxis-rlm[all]
+pre-commit install
+git commit -m "feat: add new feature"  # Hooks run automatically
+```
+
+### CLI Tools
+
+Use rec-praxis-rlm from the command line:
+
+```bash
+# Code review
+rec-praxis-review src/**/*.py --severity=HIGH --json
+
+# Security audit
+rec-praxis-audit app.py --fail-on=CRITICAL
+
+# Dependency & secret scan
+rec-praxis-deps --requirements=requirements.txt --files src/config.py
+```
+
+**Features**:
+- JSON output for IDE integration
+- Configurable severity thresholds
+- Persistent procedural memory (learns from past reviews)
+- Exit codes for CI/CD pipelines
+
+### VS Code Extension
+
+Install the "rec-praxis-rlm Code Intelligence" extension from the VS Code Marketplace.
+
+**Features**:
+- **Inline Diagnostics**: See code review and security findings as you type
+- **Context Menu**: Right-click to review/audit current file
+- **Auto-review on Save**: Real-time feedback (configurable)
+- **Dependency Scanning**: Right-click `requirements.txt` to scan for CVEs
+
+**Settings** (F1 → "Preferences: Open Settings (JSON)"):
+
+```json
+{
+  "rec-praxis-rlm.pythonPath": "python",
+  "rec-praxis-rlm.codeReview.severity": "HIGH",
+  "rec-praxis-rlm.securityAudit.failOn": "CRITICAL",
+  "rec-praxis-rlm.enableDiagnostics": true
+}
+```
+
+See `vscode-extension/README.md` for full documentation.
+
+### GitHub Actions
+
+Automatically scan pull requests for security issues:
+
+```yaml
+# .github/workflows/rec-praxis-scan.yml
+name: Security Scan
+
+on: [pull_request]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install rec-praxis-rlm[all]
+      - run: rec-praxis-review $(git diff --name-only --diff-filter=ACMR origin/main...HEAD | grep '\.py$')
+      - run: rec-praxis-audit $(git diff --name-only --diff-filter=ACMR origin/main...HEAD | grep '\.py$')
+      - run: rec-praxis-deps --requirements=requirements.txt --fail-on=CRITICAL
+```
+
+**Features**:
+- Automatic PR comments with findings
+- Artifact uploads for review results
+- Configurable severity thresholds
+- Supports matrix builds (Python 3.10+)
+
+See `.github/workflows/rec-praxis-scan.yml` for full workflow example.
+
 ## Examples
 
 See the `examples/` directory for complete examples:
@@ -505,6 +614,9 @@ See the `examples/` directory for complete examples:
 - `log_analyzer.py` - Log analysis with RLM context
 - `web_agent.py` - Web scraping agent with procedural memory
 - `optimization.py` - DSPy MIPROv2 optimizer usage
+- `code_review_agent.py` - Intelligent code review with procedural memory
+- `security_audit_agent.py` - OWASP-based security auditing
+- `dependency_scan_agent.py` - CVE detection and secret scanning
 
 ## Contributing
 

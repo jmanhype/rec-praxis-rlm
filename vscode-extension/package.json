@@ -1,0 +1,134 @@
+{
+  "name": "rec-praxis-rlm-vscode",
+  "displayName": "rec-praxis-rlm Code Intelligence",
+  "description": "Intelligent code review, security audit, and dependency scanning powered by procedural memory",
+  "version": "0.4.0",
+  "publisher": "jmanhype",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages",
+    "Testing"
+  ],
+  "keywords": [
+    "code-review",
+    "security",
+    "ai",
+    "machine-learning",
+    "dependencies"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "onCommand:rec-praxis-rlm.reviewFile",
+    "onCommand:rec-praxis-rlm.auditFile",
+    "onCommand:rec-praxis-rlm.scanDependencies"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "rec-praxis-rlm.reviewFile",
+        "title": "REC Praxis: Review Current File",
+        "category": "Code Review"
+      },
+      {
+        "command": "rec-praxis-rlm.auditFile",
+        "title": "REC Praxis: Security Audit Current File",
+        "category": "Security"
+      },
+      {
+        "command": "rec-praxis-rlm.scanDependencies",
+        "title": "REC Praxis: Scan Dependencies",
+        "category": "Dependencies"
+      },
+      {
+        "command": "rec-praxis-rlm.reviewWorkspace",
+        "title": "REC Praxis: Review Entire Workspace",
+        "category": "Code Review"
+      }
+    ],
+    "configuration": {
+      "title": "rec-praxis-rlm",
+      "properties": {
+        "rec-praxis-rlm.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to Python interpreter with rec-praxis-rlm installed"
+        },
+        "rec-praxis-rlm.codeReview.severity": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+          "default": "HIGH",
+          "description": "Minimum severity level to show code review issues"
+        },
+        "rec-praxis-rlm.securityAudit.failOn": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+          "default": "CRITICAL",
+          "description": "Minimum severity level to fail security audit"
+        },
+        "rec-praxis-rlm.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline diagnostics for code review and security findings"
+        },
+        "rec-praxis-rlm.memoryDir": {
+          "type": "string",
+          "default": ".rec-praxis-rlm",
+          "description": "Directory for procedural memory storage"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceLangId == python",
+          "command": "rec-praxis-rlm.reviewFile",
+          "group": "rec-praxis-rlm@1"
+        },
+        {
+          "when": "resourceLangId == python",
+          "command": "rec-praxis-rlm.auditFile",
+          "group": "rec-praxis-rlm@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "when": "resourceFilename == requirements.txt",
+          "command": "rec-praxis-rlm.scanDependencies",
+          "group": "rec-praxis-rlm@1"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0",
+    "@vscode/test-electron": "^2.3.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jmanhype/rec-praxis-rlm.git",
+    "directory": "vscode-extension"
+  },
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  }
+}

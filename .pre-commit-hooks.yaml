@@ -1,0 +1,52 @@
+# Pre-commit hooks for rec-praxis-rlm
+# See https://pre-commit.com for more information
+
+- id: rec-praxis-review
+  name: Code Review (rec-praxis-rlm)
+  description: Run intelligent code review using procedural memory
+  entry: rec-praxis-review
+  language: python
+  types: [python]
+  pass_filenames: true
+  require_serial: false
+  args: ["--severity=HIGH"]
+
+- id: rec-praxis-audit
+  name: Security Audit (rec-praxis-rlm)
+  description: Run OWASP-based security audit
+  entry: rec-praxis-audit
+  language: python
+  types: [python]
+  pass_filenames: true
+  require_serial: false
+  args: ["--fail-on=CRITICAL"]
+
+- id: rec-praxis-deps
+  name: Dependency & Secret Scan (rec-praxis-rlm)
+  description: Scan for CVEs and exposed secrets
+  entry: rec-praxis-deps
+  language: python
+  types: [python]
+  pass_filenames: false
+  require_serial: true
+  args: ["--requirements=requirements.txt"]
+
+- id: rec-praxis-review-strict
+  name: Code Review - Strict (rec-praxis-rlm)
+  description: Fail on MEDIUM+ issues
+  entry: rec-praxis-review
+  language: python
+  types: [python]
+  pass_filenames: true
+  require_serial: false
+  args: ["--severity=MEDIUM"]
+
+- id: rec-praxis-audit-strict
+  name: Security Audit - Strict (rec-praxis-rlm)
+  description: Fail on HIGH+ issues
+  entry: rec-praxis-audit
+  language: python
+  types: [python]
+  pass_filenames: true
+  require_serial: false
+  args: ["--fail-on=HIGH"]
