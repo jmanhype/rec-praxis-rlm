@@ -357,14 +357,7 @@ jobs:
           if [ -f dogfood-production-review-toon.txt ]; then
             wc -c dogfood-production-review-toon.txt | awk '{print "  TOON output size: " $1 " bytes"}'
             wc -c dogfood-production-review.json | awk '{print "  JSON output size: " $1 " bytes"}'
-            python -c "
-import os
-toon_size = os.path.getsize('dogfood-production-review-toon.txt')
-json_size = os.path.getsize('dogfood-production-review.json')
-if json_size > 0:
-    reduction = 100 * (1 - toon_size / json_size)
-    print(f'  Token reduction: {reduction:.1f}%')
-"
+            python3 -c 'import os; toon_size = os.path.getsize("dogfood-production-review-toon.txt"); json_size = os.path.getsize("dogfood-production-review.json"); reduction = 100 * (1 - toon_size / json_size) if json_size > 0 else 0; print(f"  Token reduction: {reduction:.1f}%")'
           fi
           echo ""
           echo "Security Audit Results:"
