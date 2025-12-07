@@ -276,6 +276,21 @@ class FactStore:
 
         return facts
 
+    def _escape_like_wildcards(self, text: str) -> str:
+        """Escape SQL LIKE wildcards (% and _) in user input.
+
+        Args:
+            text: User input text
+
+        Returns:
+            Escaped text safe for LIKE queries
+        """
+        # Escape backslash first, then % and _
+        text = text.replace("\\", "\\\\")
+        text = text.replace("%", "\\%")
+        text = text.replace("_", "\\_")
+        return text
+
     def _save_fact(self, fact: Fact):
         """Persist fact to database."""
         cursor = self.conn.cursor()
@@ -310,6 +325,9 @@ class FactStore:
         """
         cursor = self.conn.cursor()
 
+        # Escape wildcards to prevent SQL injection
+        escaped_query = self._escape_like_wildcards(query)
+
         if category:
             cursor.execute("""
                 SELECT key, value, category, evidence, source_id, created_at
@@ -317,7 +335,7 @@ class FactStore:
                 WHERE (key LIKE ? OR value LIKE ?) AND category = ?
                 ORDER BY created_at DESC
                 LIMIT ?
-            """, (f"%{query}%", f"%{query}%", category, limit))
+            """, (f"%{escaped_query}%", f"%{escaped_query}%", category, limit))
         else:
             cursor.execute("""
                 SELECT key, value, category, evidence, source_id, created_at
@@ -325,7 +343,7 @@ class FactStore:
                 WHERE key LIKE ? OR value LIKE ?
                 ORDER BY created_at DESC
                 LIMIT ?
-            """, (f"%{query}%", f"%{query}%", limit))
+            """, (f"%{escaped_query}%", f"%{escaped_query}%", limit))
 
         facts = []
         for row in cursor.fetchall():
