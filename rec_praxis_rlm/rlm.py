@@ -14,7 +14,8 @@ import hashlib
 import logging
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from typing import Optional, Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -200,6 +201,10 @@ class DocumentSearcher:
         Raises:
             SearchError: If pattern is potentially unsafe
         """
+        # Check for empty or whitespace-only pattern
+        if not pattern or not pattern.strip():
+            raise SearchError("Pattern cannot be empty or whitespace-only")
+
         # Length check: prevent extremely long patterns
         MAX_PATTERN_LENGTH = 500
         if len(pattern) > MAX_PATTERN_LENGTH:
@@ -261,37 +266,55 @@ class DocumentSearcher:
         matches: list[SearchMatch] = []
         docs_to_search = [self._store.get(doc_id)] if doc_id else self._store.get_all()
 
-        for doc in docs_to_search:
-            for line_num, line in enumerate(doc.lines, start=1):
-                if len(matches) >= max_matches:
-                    break
+        # Wrap search in timeout protection
+        executor = ThreadPoolExecutor(max_workers=1)
 
-                match = regex.search(line)
-                if match:
-                    # Compute character offsets
-                    line_start = doc.line_starts[line_num - 1]
-                    start_char = line_start + match.start()
-                    end_char = line_start + match.end()
+        def search_with_timeout():
+            local_matches = []
+            for doc in docs_to_search:
+                for line_num, line in enumerate(doc.lines, start=1):
+                    if len(local_matches) >= max_matches:
+                        break
 
-                    # Extract context
-                    context_chars = self._config.search_context_chars
-                    context_before = doc.text[max(0, start_char - context_chars) : start_char]
-                    context_after = doc.text[end_char : end_char + context_chars]
+                    match = regex.search(line)
+                    if match:
+                        # Compute character offsets
+                        line_start = doc.line_starts[line_num - 1]
+                        start_char = line_start + match.start()
+                        end_char = line_start + match.end()
 
-                    matches.append(
-                        SearchMatch(
-                            doc_id=doc.doc_id,
-                            line_number=line_num,
-                            match_text=match.group(0),
-                            context_before=context_before,
-                            context_after=context_after,
-                            start_char=start_char,
-                            end_char=end_char,
+                        # Extract context
+                        context_chars = self._config.search_context_chars
+                        context_before = doc.text[max(0, start_char - context_chars) : start_char]
+                        context_after = doc.text[end_char : end_char + context_chars]
+
+                        local_matches.append(
+                            SearchMatch(
+                                doc_id=doc.doc_id,
+                                line_number=line_num,
+                                match_text=match.group(0),
+                                context_before=context_before,
+                                context_after=context_after,
+                                start_char=start_char,
+                                end_char=end_char,
+                            )
                         )
-                    )
 
-            if len(matches) >= max_matches:
-                break
+                if len(local_matches) >= max_matches:
+                    break
+            return local_matches
+
+        try:
+            future = executor.submit(search_with_timeout)
+            matches = future.result(timeout=self._config.regex_timeout_seconds)
+        except FutureTimeoutError:
+            executor.shutdown(wait=False)
+            raise SearchError(
+                f"Regex search timed out after {self._config.regex_timeout_seconds}s. "
+                f"Pattern may be too complex (ReDoS): {pattern}"
+            )
+        finally:
+            executor.shutdown(wait=False)
 
         # Emit telemetry
         emit_event(

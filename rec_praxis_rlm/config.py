@@ -252,6 +252,7 @@ class ReplConfig(BaseModel):
         max_search_matches: Maximum number of search results to return
         search_context_chars: Number of context characters before/after match
         execution_timeout_seconds: Timeout for safe code execution
+        regex_timeout_seconds: Timeout for regex search operations (ReDoS protection)
         enable_sandbox: If True, use sandboxed execution (recommended)
         log_executions: If True, log all code executions for audit trail
         allowed_builtins: List of allowed built-in functions
@@ -274,6 +275,12 @@ class ReplConfig(BaseModel):
         ge=0.1,
         le=60.0,
         description="Timeout for safe code execution",
+    )
+    regex_timeout_seconds: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Timeout for regex search operations (ReDoS protection)",
     )
     enable_sandbox: bool = Field(
         default=True,
