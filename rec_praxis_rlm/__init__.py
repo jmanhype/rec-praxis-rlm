@@ -1,6 +1,6 @@
 """REC Praxis RLM - Retrieval-Enhanced Context for Praxis Reinforcement Learning Memory."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from rec_praxis_rlm.memory import ProceduralMemory, Experience
 from rec_praxis_rlm.rlm import RLMContext, SearchMatch, ExecutionResult

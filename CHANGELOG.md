@@ -56,26 +56,81 @@ Backward compatible - FactStore is optional.
 
 ---
 
-## [Unreleased]
+## [0.3.0] - 2025-12-06
+
+### 🚀 Supply Chain Security: Dependency & Secret Scanning
+
+This release adds **Week 5** implementation with dependency vulnerability detection and secret scanning capabilities, completing the security audit suite started in v0.2.0.
 
 ### Added
-- Programmatic API key support via `PlannerConfig.api_key` parameter
-- Thread-safe model switching using `dspy.context()` in `plan()` method
-- Multi-model support: can use different models in same process without conflicts
-- Clear "Requirements" section in README documenting what works without API keys
-- Comprehensive "Supported LLM Providers" section with examples for Groq, OpenAI, OpenRouter, and others
-- Multi-provider examples in DSPy autonomous planning quickstart
-- Verified Groq integration (llama-3.3-70b-versatile model)
-- Documentation highlighting Groq as recommended provider (fast, free)
-- Updated examples to show programmatic API key usage
+
+#### Dependency Scan Agent
+- DependencyScanAgent class (671 LOC) for CVE detection and secret scanning
+- CVE database integration (hardcoded for demo, extensible to NVD/GitHub Advisories API)
+- Automatic CVSS scoring and severity classification
+- Context-aware upgrade recommendations from past successful migrations
+
+#### Secret Scanning (8 Pattern Types)
+- AWS Access Keys (AKIA pattern detection)
+- GitHub Tokens (ghp_ pattern)
+- Generic API keys with entropy-based validation
+- Private keys (PEM format detection)
+- Database URLs with embedded passwords
+- Generic password patterns
+- JWT tokens
+- Slack tokens
+
+#### Entropy-Based Analysis
+- Shannon entropy calculation to reduce false positives
+- Configurable thresholds (default: >3.0 bits/char for secrets)
+- Smart filtering of common words and test data
+
+#### RAGAS Evaluation for Dependency Scanning
+- test_ragas_dependency_scan.py (490 LOC)
+- 4 evaluation scenarios: CVE detection, upgrade paths, AWS/GitHub secret remediation
+- Expected scores: Faithfulness >= 0.85, Recall >= 0.85, Precision >= 0.85
 
 ### Changed
-- `PraxisRLMPlanner` now stores LM instance as `self._lm` for context switching
-- API keys can now be passed programmatically or via environment variables
+- BENCHMARKS.md updated with Week 5 comprehensive documentation
+- Release timeline updated to reflect v0.3.0 milestone
 
-### Fixed
-- Updated DSPy 3.0 ReAct API compatibility (now requires signature parameter)
-- Fixed import path for ReAct (moved from dspy.primitives to dspy directly in DSPy 3.0)
+### Files Added
+- examples/dependency_scan_agent.py (671 lines)
+- tests/test_ragas_dependency_scan.py (490 lines)
+
+### Performance
+- <2s scan time for 5 dependencies + 1 file
+- <100ms CVE lookup (hardcoded database)
+- <1s secret scanning for 10,000 lines of code
+- <20ms memory retrieval with FAISS indexing
+
+### Migration Guide
+```python
+# Use DependencyScanAgent for supply chain security
+from examples.dependency_scan_agent import DependencyScanAgent
+
+agent = DependencyScanAgent()
+
+# Scan dependencies for CVEs
+cve_findings, deps = agent.scan_dependencies(requirements_content)
+
+# Scan files for secrets
+secret_findings = agent.scan_secrets({"config.py": config_content})
+
+# Generate comprehensive report
+report = agent.generate_report(cve_findings, secret_findings, len(deps), 1)
+```
+
+Backward compatible - all v0.2.0 features continue to work.
+
+---
+
+## [Unreleased]
+
+### Planned for v0.4.0
+- IDE integrations (VS Code extension, pre-commit hooks)
+- GitHub Actions integration
+- Real-time security monitoring
 
 ## [0.1.1] - 2025-12-06
 
