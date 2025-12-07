@@ -1,6 +1,7 @@
 """Procedural memory storage and retrieval with hybrid similarity scoring."""
 
 import asyncio
+import fcntl
 import hashlib
 import json
 import logging
@@ -328,9 +329,19 @@ class ProceduralMemory:
                 # Copy existing content + new experience
                 with os.fdopen(fd, "w") as temp_file:
                     if os.path.exists(self.config.storage_path):
-                        # File exists - copy existing content
+                        # File exists - acquire lock and copy existing content
                         with open(self.config.storage_path, "r") as existing:
-                            temp_file.write(existing.read())
+                            # Acquire exclusive lock to prevent race conditions
+                            try:
+                                fcntl.flock(existing.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                                temp_file.write(existing.read())
+                            except BlockingIOError:
+                                # Another process has the lock, wait for it
+                                fcntl.flock(existing.fileno(), fcntl.LOCK_EX)
+                                temp_file.write(existing.read())
+                            finally:
+                                # Release lock
+                                fcntl.flock(existing.fileno(), fcntl.LOCK_UN)
                     else:
                         # New file - write version marker as first line
                         version_marker = json.dumps({"__version__": STORAGE_VERSION})
