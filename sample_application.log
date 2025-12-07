@@ -1,0 +1,78 @@
+2025-12-06 09:00:00 INFO [Application] Starting rec-praxis-rlm service v0.1.1
+2025-12-06 09:00:01 INFO [Database] Connecting to PostgreSQL at localhost:5432
+2025-12-06 09:00:02 INFO [Database] Connection pool initialized (min=5, max=20)
+2025-12-06 09:00:03 INFO [MemoryService] Loading procedural memory from ./memory.jsonl
+2025-12-06 09:00:04 INFO [MemoryService] Loaded 1,245 experiences (3.2MB)
+2025-12-06 09:00:05 INFO [Embeddings] Initializing sentence-transformers model
+2025-12-06 09:00:08 INFO [Embeddings] Model loaded: all-MiniLM-L6-v2
+2025-12-06 09:00:09 INFO [RLMContext] Document store initialized
+2025-12-06 09:00:10 INFO [SafeExecutor] Sandbox environment ready
+2025-12-06 09:00:11 INFO [Application] Service started successfully on port 8000
+
+2025-12-06 09:15:23 INFO [API] GET /api/v1/recall?env=web_scraping&goal=extract_prices
+2025-12-06 09:15:24 DEBUG [MemoryService] Computing embeddings for query
+2025-12-06 09:15:25 DEBUG [MemoryService] FAISS search returned 6 candidates
+2025-12-06 09:15:26 INFO [API] Response 200 OK (3.2s)
+
+2025-12-06 09:23:45 INFO [API] POST /api/v1/execute
+2025-12-06 09:23:46 ERROR [SafeExecutor] Code validation failed: Import statements are not allowed
+2025-12-06 09:23:46 ERROR [SafeExecutor] Blocked code: import os; os.system('ls')
+2025-12-06 09:23:46 INFO [API] Response 400 Bad Request (0.1s)
+
+2025-12-06 09:45:12 INFO [API] GET /api/v1/recall?env=python,debugging&goal=find_error
+2025-12-06 09:45:13 ERROR [Database] Connection timeout after 5.0s
+2025-12-06 09:45:13 ERROR [Database] psycopg2.OperationalError: FATAL: remaining connection slots are reserved
+2025-12-06 09:45:13 ERROR [MemoryService] Failed to query experiences table
+2025-12-06 09:45:13 INFO [API] Response 503 Service Unavailable (5.2s)
+
+2025-12-06 10:02:34 INFO [Database] Connection pool exhausted (active=20, idle=0)
+2025-12-06 10:02:35 WARN [Database] Query queue backed up: 15 pending queries
+2025-12-06 10:02:36 ERROR [Database] Connection timeout after 5.0s
+2025-12-06 10:02:36 ERROR [MemoryService] Failed to store experience
+2025-12-06 10:02:36 INFO [API] Response 503 Service Unavailable (5.3s)
+
+2025-12-06 10:15:45 INFO [Admin] Restarting connection pool
+2025-12-06 10:15:46 INFO [Database] Closing 20 active connections
+2025-12-06 10:15:47 INFO [Database] Connection pool reinitialized (min=10, max=50)
+2025-12-06 10:15:48 INFO [Admin] Pool restart complete
+
+2025-12-06 10:18:22 INFO [API] GET /api/v1/recall?env=python&goal=optimize_code
+2025-12-06 10:18:23 DEBUG [MemoryService] Computing embeddings for query
+2025-12-06 10:18:24 DEBUG [MemoryService] FAISS search returned 6 candidates
+2025-12-06 10:18:25 INFO [API] Response 200 OK (2.8s)
+
+2025-12-06 10:32:11 ERROR [SafeExecutor] Execution timeout after 5.0s
+2025-12-06 10:32:11 ERROR [SafeExecutor] Infinite loop detected in user code
+2025-12-06 10:32:11 INFO [API] Response 400 Bad Request (5.1s)
+
+2025-12-06 11:05:33 INFO [API] POST /api/v1/grep
+2025-12-06 11:05:34 ERROR [DocumentSearcher] ReDoS pattern detected: (a+)+
+2025-12-06 11:05:34 ERROR [DocumentSearcher] Potentially dangerous regex blocked for security
+2025-12-06 11:05:34 INFO [API] Response 400 Bad Request (0.05s)
+
+2025-12-06 11:23:18 ERROR [Database] Connection timeout after 5.0s
+2025-12-06 11:23:18 ERROR [Database] Max retries exceeded (3 attempts)
+2025-12-06 11:23:18 WARN [Database] Falling back to read-only replica
+2025-12-06 11:23:19 INFO [Database] Connected to replica at replica-1.internal:5432
+2025-12-06 11:23:20 INFO [API] Response 200 OK (1.9s)
+
+2025-12-06 12:00:00 INFO [Maintenance] Starting hourly cleanup
+2025-12-06 12:00:01 INFO [MemoryService] Compacting memory (current size: 1,245 experiences)
+2025-12-06 12:00:05 INFO [MemoryService] Removed 45 low-similarity experiences
+2025-12-06 12:00:06 INFO [MemoryService] Memory compacted to 1,200 experiences
+2025-12-06 12:00:07 INFO [Maintenance] Cleanup complete
+
+2025-12-06 12:15:44 ERROR [Embeddings] Model loading failed: Out of memory
+2025-12-06 12:15:44 ERROR [Embeddings] Unable to allocate 1.2GB for model weights
+2025-12-06 12:15:44 WARN [Embeddings] Falling back to Jaccard similarity
+2025-12-06 12:15:45 INFO [API] Response 200 OK (4.5s, degraded mode)
+
+2025-12-06 12:45:22 INFO [API] GET /api/v1/recall?env=log_analysis&goal=find_patterns
+2025-12-06 12:45:23 DEBUG [MemoryService] Using Jaccard fallback (embeddings unavailable)
+2025-12-06 12:45:24 WARN [MemoryService] Degraded recall quality without embeddings
+2025-12-06 12:45:25 INFO [API] Response 200 OK (2.1s, degraded mode)
+
+2025-12-06 13:02:15 INFO [Admin] Restarting embedding service
+2025-12-06 13:02:20 INFO [Embeddings] Model loaded: all-MiniLM-L6-v2
+2025-12-06 13:02:21 INFO [MemoryService] Embeddings restored, full functionality resumed
+2025-12-06 13:02:22 INFO [Admin] Service health check: OK
