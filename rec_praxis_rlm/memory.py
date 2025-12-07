@@ -54,6 +54,8 @@ class Experience(BaseModel):
         cost: Optional cost in dollars (for LLM calls)
         metadata: Optional metadata dictionary
         privacy_level: Privacy classification (public/private/pii) for redaction control
+        tags: Semantic tags extracted from experience text
+        experience_type: Experience classification (learn/recover/optimize/explore)
     """
 
     model_config = {"strict": False}  # Allow extra fields for forward compatibility
@@ -102,6 +104,10 @@ class Experience(BaseModel):
     tags: list[str] = Field(
         default_factory=list,
         description="Semantic tags extracted from experience (e.g., 'database', 'api', 'auth')",
+    )
+    experience_type: str = Field(
+        default="learn",
+        description="Experience classification: learn, recover, optimize, explore",
     )
 
 
@@ -174,6 +180,14 @@ class ProceduralMemory:
         except ImportError:
             logger.warning("Concepts module not available, disabling tag extraction")
             self.concept_tagger = None
+
+        # Initialize experience classifier for type classification
+        try:
+            from rec_praxis_rlm.experience_classifier import ExperienceClassifier
+            self.experience_classifier = ExperienceClassifier()
+        except ImportError:
+            logger.warning("Experience classifier module not available, disabling type classification")
+            self.experience_classifier = None
 
         # Corruption statistics (tracked during load)
         self.corruption_stats = {
@@ -607,6 +621,14 @@ class ProceduralMemory:
                 logger.debug(f"Tagged experience with {len(experience.tags)} tags: {experience.tags}")
             except Exception as e:
                 logger.warning(f"Concept tagging failed: {e}")
+
+        # Auto-classify experience type
+        if self.experience_classifier:
+            try:
+                experience = self.experience_classifier.classify_experience(experience)
+                logger.debug(f"Classified experience as '{experience.experience_type}'")
+            except Exception as e:
+                logger.warning(f"Experience classification failed: {e}")
 
         # Compute embedding if missing and provider available
         if experience.embedding is None and self.embedding_provider:

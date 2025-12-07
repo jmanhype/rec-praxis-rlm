@@ -36,6 +36,7 @@ from rec_praxis_rlm.privacy import (
     redact_secrets,
 )
 from rec_praxis_rlm.concepts import ConceptTagger
+from rec_praxis_rlm.experience_classifier import ExperienceClassifier
 
 __all__ = [
     # Version
@@ -78,4 +79,6 @@ __all__ = [
     "redact_secrets",
     # Concepts
     "ConceptTagger",
+    # Experience Classification
+    "ExperienceClassifier",
 ]
