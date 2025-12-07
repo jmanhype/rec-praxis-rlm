@@ -1142,6 +1142,219 @@ Use environment variables: os.getenv('API_KEY') or configuration files excluded 
 - Prevents GitHub API rate limit issues
 - All findings still shown in summary comment
 
+### Test Generation Agent
+
+Automatically generate pytest tests for uncovered code paths, inspired by Qodo-Cover (v0.5.0+):
+
+**Features**:
+- Analyzes coverage.py reports to identify uncovered code regions
+- Generates pytest tests targeting specific uncovered functions
+- Uses procedural memory to learn from successful test patterns
+- Validates generated tests execute and pass
+- Supports iterative test generation until coverage target met
+- Groups consecutive uncovered lines into meaningful test targets
+- Provides estimated coverage gain for each generated test
+
+**Installation**:
+
+```bash
+pip install rec-praxis-rlm[test-generation]
+# Or install with coverage already included in dev dependencies
+pip install rec-praxis-rlm[dev]
+```
+
+**Prerequisites**:
+
+```bash
+# First, run your tests with coverage to generate .coverage file
+pytest --cov=your_package --cov-report=term tests/
+```
+
+**CLI Usage**:
+
+```bash
+# Generate tests for all uncovered code (default target: 90%)
+rec-praxis-generate-tests
+
+# Target specific files
+rec-praxis-generate-tests src/app.py src/utils.py
+
+# Custom coverage target
+rec-praxis-generate-tests --target-coverage=95
+
+# Limit number of tests generated
+rec-praxis-generate-tests --max-tests=5
+
+# Dry run (show what would be generated)
+rec-praxis-generate-tests --dry-run
+
+# Generate and validate tests
+rec-praxis-generate-tests --validate
+
+# Custom test directory
+rec-praxis-generate-tests --test-dir=integration_tests
+
+# JSON output for automation
+rec-praxis-generate-tests --format=json
+```
+
+**Example Output**:
+
+```
+🧪 Test Generation Agent v0.5.0
+============================================================
+
+Current coverage: 78.3%
+Target coverage: 90.0%
+Found 12 uncovered regions
+
+Generated test for calculate_discount at src/pricing.py:45
+Generated test for validate_email at src/utils.py:89
+Generated test for process_payment at src/payments.py:123
+
+============================================================
+📝 Generated 3 test(s)
+============================================================
+
+1. Test for calculate_discount at lines 45-52
+   Target: calculate_discount in src/pricing.py
+   Test file: tests/test_pricing.py
+   Estimated coverage gain: 8.0 lines
+
+   ✅ Created tests/test_pricing.py
+
+2. Test for validate_email at lines 89-96
+   Target: validate_email in src/utils.py
+   Test file: tests/test_utils.py
+   Estimated coverage gain: 8.0 lines
+
+   ✅ Appended to tests/test_utils.py
+
+3. Test for process_payment at lines 123-135
+   Target: process_payment in src/payments.py
+   Test file: tests/test_payments.py
+   Estimated coverage gain: 13.0 lines
+
+   ✅ Created tests/test_payments.py
+```
+
+**Generated Test Example**:
+
+```python
+"""Auto-generated test for calculate_discount."""
+import pytest
+from pricing import calculate_discount
+
+
+def test_calculate_discount_basic():
+    """Test calculate_discount with basic inputs."""
+    # TODO: Add appropriate test cases
+    # Generated for uncovered lines 45-52
+    pass
+```
+
+**How It Works**:
+
+1. **Coverage Analysis**: Parses `.coverage` file to identify uncovered lines
+2. **Region Grouping**: Groups consecutive uncovered lines into logical regions
+3. **AST Parsing**: Extracts function/class context for each uncovered region
+4. **Test Generation**: Creates pytest test stubs targeting specific functions
+5. **Memory Learning**: Stores successful test patterns in procedural memory
+6. **Validation**: Optionally runs `pytest` to verify tests execute
+
+**Procedural Memory Integration**:
+
+The agent learns from successful test patterns:
+- Stores test structures that pass validation
+- Recalls similar tests for similar code patterns
+- Improves test quality over time through experience
+
+**Use Cases**:
+- Increase test coverage before releases
+- Generate test scaffolding for new code
+- Find untested code paths in legacy projects
+- Close the loop: detect issues → generate tests → prevent regression
+- Save developer time on boilerplate test writing
+
+**Iterative Test Generation**:
+
+```bash
+# Generate tests iteratively until 95% coverage reached
+while [ $(pytest --cov=src --cov-report=term | grep TOTAL | awk '{print $4}' | sed 's/%//') -lt 95 ]; do
+  rec-praxis-generate-tests --max-tests=3 --validate
+  pytest --cov=src --cov-report=term
+done
+```
+
+**Programmatic API**:
+
+```python
+from rec_praxis_rlm.agents import TestGenerationAgent
+from pathlib import Path
+
+# Initialize agent
+agent = TestGenerationAgent(
+    memory_path=".rec-praxis-rlm/test_generation_memory.jsonl",
+    coverage_data_file=".coverage",
+    test_dir="tests"
+)
+
+# Analyze coverage
+analysis = agent.analyze_coverage(source_files=["src/app.py"])
+print(f"Current coverage: {analysis.total_coverage:.1f}%")
+print(f"Uncovered regions: {len(analysis.uncovered_regions)}")
+
+# Generate tests
+generated_tests = agent.generate_tests_for_coverage_gap(
+    target_coverage=90.0,
+    max_tests=10,
+    source_files=["src/app.py"]
+)
+
+for test in generated_tests:
+    print(f"Generated: {test.description}")
+    print(f"Test file: {test.test_file_path}")
+
+    # Validate test
+    success, message = agent.validate_test(test)
+    if success:
+        print(f"✅ {message}")
+    else:
+        print(f"❌ {message}")
+```
+
+**Limitations (MVP)**:
+
+The current implementation provides a foundation for test generation:
+
+- **Template-based generation**: Uses simple templates for test stubs (TODO: LLM-based generation with DSPy in future)
+- **Manual refinement required**: Generated tests need developer input for assertions
+- **Function-level targeting**: Focuses on uncovered functions (TODO: branch coverage in future)
+- **Python/pytest only**: Currently supports Python projects with pytest
+
+**Roadmap (Future Versions)**:
+
+- **v0.6.0**: DSPy-based intelligent test generation with assertions
+- **v0.7.0**: Branch coverage analysis and conditional test generation
+- **v0.8.0**: Property-based testing with Hypothesis integration
+- **v0.9.0**: Multi-language support (JavaScript/TypeScript, Go, Rust)
+
+**Integration with Qodo AI Workflow**:
+
+```bash
+# 1. Run security scan
+rec-praxis-audit src/**/*.py --severity=HIGH
+
+# 2. Generate tests for untested security-critical code
+rec-praxis-generate-tests src/auth.py src/crypto.py --validate
+
+# 3. Run tests to verify coverage increase
+pytest --cov=src --cov-report=term
+
+# 4. Iterate until both security and coverage targets met
+rec-praxis-review src/**/*.py --mode=iterative --target-score=95
+```
+
 ## Examples
 
 See the `examples/` directory for complete examples:

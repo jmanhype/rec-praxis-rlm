@@ -864,6 +864,132 @@ def cli_pr_review() -> int:
     return 0
 
 
+def cli_generate_tests() -> int:
+    """Generate pytest tests for uncovered code paths.
+
+    Returns:
+        0 on success, 1 on failure
+    """
+    parser = argparse.ArgumentParser(
+        description="Generate pytest tests to increase code coverage"
+    )
+    parser.add_argument("source_files", nargs="*",
+                       help="Source files to generate tests for (optional, scans all if not specified)")
+    parser.add_argument("--coverage-file", default=".coverage",
+                       help="Path to coverage.py data file (default: .coverage)")
+    parser.add_argument("--target-coverage", type=float, default=90.0,
+                       help="Target coverage percentage (0-100, default: 90)")
+    parser.add_argument("--max-tests", type=int, default=10,
+                       help="Maximum number of tests to generate (default: 10)")
+    parser.add_argument("--test-dir", default="tests",
+                       help="Directory for generated tests (default: tests)")
+    parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
+                       help="Directory for procedural memory storage")
+    parser.add_argument("--dry-run", action="store_true",
+                       help="Show what tests would be generated without writing files")
+    parser.add_argument("--validate", action="store_true",
+                       help="Run pytest to validate generated tests")
+    parser.add_argument("--format", default="human",
+                       choices=["human", "json"],
+                       help="Output format (default: human)")
+    args = parser.parse_args()
+
+    # Lazy import
+    try:
+        from rec_praxis_rlm.agents import TestGenerationAgent
+    except ImportError as e:
+        from rec_praxis_rlm.errors import format_import_error
+        print(format_import_error(e, "agents"), file=sys.stderr)
+        return 1
+
+    # Check for coverage.py
+    if not Path(args.coverage_file).exists():
+        print(f"Error: Coverage file not found: {args.coverage_file}", file=sys.stderr)
+        print("Run pytest with coverage first:", file=sys.stderr)
+        print(f"  pytest --cov=your_package --cov-report=term tests/", file=sys.stderr)
+        return 1
+
+    # Initialize agent
+    memory_dir = Path(args.memory_dir)
+    memory_dir.mkdir(exist_ok=True)
+    agent = TestGenerationAgent(
+        memory_path=str(memory_dir / "test_generation_memory.jsonl"),
+        coverage_data_file=args.coverage_file,
+        test_dir=args.test_dir
+    )
+
+    print(f"🧪 Test Generation Agent v{__version__}")
+    print(f"{'='*60}\n")
+
+    # Generate tests
+    try:
+        generated_tests = agent.generate_tests_for_coverage_gap(
+            target_coverage=args.target_coverage,
+            max_tests=args.max_tests,
+            source_files=args.source_files if args.source_files else None
+        )
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Error during test generation: {e}", file=sys.stderr)
+        return 1
+
+    if not generated_tests:
+        print("✅ No tests generated - coverage target met or no uncovered regions found")
+        return 0
+
+    print(f"\n{'='*60}")
+    print(f"📝 Generated {len(generated_tests)} test(s)")
+    print(f"{'='*60}\n")
+
+    # Output results
+    if args.format == "json":
+        output = {
+            "tests_generated": len(generated_tests),
+            "tests": [t.to_dict() for t in generated_tests]
+        }
+        print(json.dumps(output, indent=2))
+        return 0
+
+    # Human-readable format
+    for idx, test in enumerate(generated_tests, 1):
+        print(f"{idx}. {test.description}")
+        print(f"   Target: {test.target_function} in {test.target_file}")
+        print(f"   Test file: {test.test_file_path}")
+        print(f"   Estimated coverage gain: {test.estimated_coverage_gain:.1f} lines\n")
+
+        if not args.dry_run:
+            # Write test to file
+            test_file = Path(test.test_file_path)
+            test_file.parent.mkdir(parents=True, exist_ok=True)
+
+            if test_file.exists():
+                with open(test_file, 'a') as f:
+                    f.write('\n\n' + test.test_code)
+                print(f"   ✅ Appended to {test.test_file_path}")
+            else:
+                with open(test_file, 'w') as f:
+                    f.write(test.test_code)
+                print(f"   ✅ Created {test.test_file_path}")
+
+            # Validate if requested
+            if args.validate:
+                success, message = agent.validate_test(test)
+                if success:
+                    print(f"   ✅ {message}")
+                else:
+                    print(f"   ❌ {message}")
+        else:
+            print(f"   [DRY RUN] Would write to {test.test_file_path}")
+
+    if args.dry_run:
+        print(f"\n💡 Dry run complete - no files were written")
+        print(f"   Run without --dry-run to write tests to disk")
+
+    return 0
+
+
 def main() -> int:
     """Main CLI entry point - dispatches to sub-commands."""
     parser = argparse.ArgumentParser(
@@ -871,10 +997,11 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Available commands:
-  rec-praxis-review       - Code review pre-commit hook
-  rec-praxis-audit        - Security audit pre-commit hook
-  rec-praxis-deps         - Dependency & secret scanning hook
-  rec-praxis-pr-review    - Post findings as GitHub PR comments
+  rec-praxis-review         - Code review pre-commit hook
+  rec-praxis-audit          - Security audit pre-commit hook
+  rec-praxis-deps           - Dependency & secret scanning hook
+  rec-praxis-pr-review      - Post findings as GitHub PR comments
+  rec-praxis-generate-tests - Generate pytest tests for uncovered code
         """
     )
     parser.add_argument("--version", action="version", version=f"rec-praxis-rlm {__version__}")
