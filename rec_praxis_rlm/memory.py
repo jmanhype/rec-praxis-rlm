@@ -337,6 +337,9 @@ class ProceduralMemory:
 
         This method extracts all embeddings from experiences and builds
         a FAISS IndexFlatIP (Inner Product) index for fast similarity search.
+
+        Embeddings with inconsistent dimensions are filtered out and logged.
+        If all embeddings are invalid, the FAISS index is disabled.
         """
         if not self.use_faiss:
             return
@@ -358,11 +361,31 @@ class ProceduralMemory:
                 logger.debug("No embeddings available for FAISS index")
                 return
 
-            # Determine embedding dimension
-            self._embedding_dimension = len(embeddings_list[0])
+            # Determine embedding dimension from first embedding
+            expected_dim = len(embeddings_list[0])
+
+            # Validate all embeddings have same dimension
+            filtered_embeddings = []
+            for i, emb in enumerate(embeddings_list):
+                if len(emb) != expected_dim:
+                    logger.warning(
+                        f"Skipping embedding {i} with dimension {len(emb)} "
+                        f"(expected {expected_dim})"
+                    )
+                    continue
+                filtered_embeddings.append(emb)
+
+            if not filtered_embeddings:
+                # All embeddings were filtered out due to dimension mismatch
+                self._faiss_index = None
+                self._embedding_dimension = None
+                logger.warning("No valid embeddings after dimension validation")
+                return
+
+            self._embedding_dimension = expected_dim
 
             # Convert to numpy array and normalize for cosine similarity
-            embeddings_np = np.array(embeddings_list, dtype=np.float32)
+            embeddings_np = np.array(filtered_embeddings, dtype=np.float32)
 
             # Normalize vectors for cosine similarity (then use inner product)
             norms = np.linalg.norm(embeddings_np, axis=1, keepdims=True)
