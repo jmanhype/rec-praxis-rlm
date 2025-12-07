@@ -4,6 +4,7 @@ import json
 from typing import Any, Dict, List
 from datetime import datetime, timezone
 
+from rec_praxis_rlm import __version__
 from rec_praxis_rlm.types import Finding, CVEFinding, SecretFinding, Severity
 
 
@@ -181,7 +182,7 @@ def _severity_to_sarif_level(severity: Severity) -> str:
 def format_findings_as_sarif(
     findings: List[Finding],
     tool_name: str = "rec-praxis-rlm",
-    tool_version: str = "0.4.3"
+    tool_version: str = __version__
 ) -> str:
     """Format findings as SARIF (Static Analysis Results Interchange Format).
 
@@ -291,7 +292,7 @@ def format_findings_as_sarif(
 def format_cve_findings_as_sarif(
     findings: List[CVEFinding],
     tool_name: str = "rec-praxis-rlm-deps",
-    tool_version: str = "0.4.3"
+    tool_version: str = __version__
 ) -> str:
     """Format CVE findings as SARIF for GitHub Dependabot integration.
 
