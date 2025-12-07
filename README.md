@@ -1003,6 +1003,145 @@ View dogfooding results in the [GitHub Actions artifacts](https://github.com/jma
 
 See `.github/workflows/rec-praxis-scan.yml` for the full workflow implementation.
 
+### PR-Agent Style Integration
+
+Post security findings as inline GitHub PR comments, similar to PR-Agent (v0.5.0+):
+
+**Features**:
+- Inline review comments on specific lines with security findings
+- Summary comment with severity breakdown and top issues
+- Automatic PR comment posting via GitHub API
+- Supports dry-run mode for testing
+- Up to 20 inline comments to avoid spam
+- Emoji-coded severity levels (🔴 CRITICAL, 🟠 HIGH, 🟡 MEDIUM, 🟢 LOW)
+
+**Installation**:
+
+```bash
+pip install rec-praxis-rlm[github]
+```
+
+**CLI Usage**:
+
+```bash
+# Post findings to PR #123
+rec-praxis-pr-review src/**/*.py \
+  --pr-number=123 \
+  --repo=owner/repo \
+  --severity=HIGH
+
+# Dry run (show what would be posted)
+rec-praxis-pr-review src/**/*.py \
+  --pr-number=123 \
+  --repo=owner/repo \
+  --severity=HIGH \
+  --dry-run
+
+# Custom commit SHA
+rec-praxis-pr-review src/**/*.py \
+  --pr-number=123 \
+  --repo=owner/repo \
+  --commit-sha=abc123def456
+```
+
+**GitHub Actions Workflow**:
+
+```yaml
+# .github/workflows/pr-security-review.yml
+name: PR Security Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  security-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write  # Required for posting comments
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git diff
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install rec-praxis-rlm
+        run: pip install rec-praxis-rlm[github]
+
+      - name: Find changed Python files
+        id: changed-files
+        run: |
+          CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} | grep '\.py$' || echo "")
+          echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+
+      - name: Post security findings
+        if: steps.changed-files.outputs.files != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          rec-praxis-pr-review ${{ steps.changed-files.outputs.files }} \
+            --pr-number=${{ github.event.pull_request.number }} \
+            --repo=${{ github.repository }} \
+            --severity=HIGH
+```
+
+**Example PR Comment Output**:
+
+**Summary Comment**:
+```
+## 🔒 rec-praxis-rlm Security Scan Results
+
+**Found 5 issue(s) at HIGH+ severity**
+
+### Severity Breakdown
+- 🔴 **CRITICAL**: 1
+- 🟠 **HIGH**: 2
+- 🟡 **MEDIUM**: 2
+
+### Top Issues
+
+1. 🔴 **Hardcoded Credentials** (CRITICAL)
+   - File: `src/app.py:45`
+   - Hardcoded API key found in source code
+
+2. 🟠 **SQL Injection Risk** (HIGH)
+   - File: `src/db.py:78`
+   - Potential SQL injection: String concatenation in SQL execute()
+
+...
+
+---
+*Powered by [rec-praxis-rlm](https://github.com/jmanhype/rec-praxis-rlm)*
+```
+
+**Inline Review Comments** (posted on specific lines):
+
+```
+🔴 **CRITICAL: Hardcoded Credentials**
+
+Hardcoded API key found in source code
+
+**Remediation:**
+Use environment variables: os.getenv('API_KEY') or configuration files excluded from version control
+```
+
+**Use Cases**:
+- Shift-left security: Catch issues before merge
+- Code review automation for security teams
+- Educational tool for developers (learn from inline comments)
+- Compliance enforcement (block PRs with CRITICAL findings)
+- Reduce manual security review workload
+
+**Rate Limiting**:
+- Maximum 20 inline comments per scan (most critical issues prioritized)
+- Prevents GitHub API rate limit issues
+- All findings still shown in summary comment
+
 ## Examples
 
 See the `examples/` directory for complete examples:

@@ -8,6 +8,7 @@ This module provides CLI entry points for:
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -663,6 +664,206 @@ def cli_dependency_scan() -> int:
     return 1 if blocking_findings else 0
 
 
+def cli_pr_review() -> int:
+    """GitHub PR integration: Post findings as inline review comments.
+
+    Returns:
+        0 on success, 1 on failure
+    """
+    parser = argparse.ArgumentParser(description="Post security findings as GitHub PR comments")
+    parser.add_argument("files", nargs="+", help="Files to review")
+    parser.add_argument("--pr-number", type=int, required=True,
+                       help="Pull request number")
+    parser.add_argument("--repo", required=True,
+                       help="Repository in owner/repo format")
+    parser.add_argument("--github-token",
+                       help="GitHub token (defaults to GITHUB_TOKEN env var)")
+    parser.add_argument("--severity", default="HIGH",
+                       choices=["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+                       help="Minimum severity to comment on (default: HIGH)")
+    parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
+                       help="Directory for procedural memory storage")
+    parser.add_argument("--commit-sha",
+                       help="Commit SHA to comment on (defaults to PR head)")
+    parser.add_argument("--dry-run", action="store_true",
+                       help="Show what would be posted without actually posting")
+    args = parser.parse_args()
+
+    # Get GitHub token
+    github_token = args.github_token or os.getenv("GITHUB_TOKEN")
+    if not github_token and not args.dry_run:
+        print("Error: GitHub token required (--github-token or GITHUB_TOKEN env var)", file=sys.stderr)
+        return 1
+
+    # Lazy import
+    try:
+        from rec_praxis_rlm.agents import CodeReviewAgent, SecurityAuditAgent
+        from rec_praxis_rlm.types import Severity
+    except ImportError as e:
+        from rec_praxis_rlm.errors import format_import_error
+        print(format_import_error(e, "agents"), file=sys.stderr)
+        return 1
+
+    # Initialize agents
+    memory_dir = Path(args.memory_dir)
+    memory_dir.mkdir(exist_ok=True)
+    code_agent = CodeReviewAgent(memory_path=str(memory_dir / "code_review_memory.jsonl"))
+    security_agent = SecurityAuditAgent(memory_path=str(memory_dir / "security_audit_memory.jsonl"))
+
+    # Read and review files
+    files_content = {}
+    for file_path in args.files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                files_content[file_path] = f.read()
+        except Exception as e:
+            print(f"Error reading {file_path}: {e}", file=sys.stderr)
+
+    # Run code review
+    code_findings = code_agent.review_code(files_content)
+
+    # Run security audit
+    security_report = security_agent.generate_audit_report(files_content)
+    all_findings = code_findings + security_report.findings
+
+    # Filter by severity
+    severity_order = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+    threshold = severity_order[args.severity]
+    filtered_findings = [
+        f for f in all_findings
+        if severity_order[f.severity.name] >= threshold
+    ]
+
+    if not filtered_findings:
+        print(f"✅ No findings at {args.severity}+ severity")
+        return 0
+
+    # Group findings by severity
+    severity_counts = {}
+    for f in filtered_findings:
+        severity_counts[f.severity.name] = severity_counts.get(f.severity.name, 0) + 1
+
+    print(f"\n📊 Found {len(filtered_findings)} issue(s) at {args.severity}+ severity:")
+    for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+        if sev in severity_counts:
+            print(f"  {sev}: {severity_counts[sev]}")
+
+    if args.dry_run:
+        print("\n🔍 Dry run - would post the following comments:\n")
+        for idx, finding in enumerate(filtered_findings[:10], 1):  # Show first 10
+            print(f"{idx}. [{finding.severity.name}] {finding.title}")
+            print(f"   File: {finding.file_path}:{finding.line_number}")
+            print(f"   {finding.description}")
+            print(f"   Fix: {finding.remediation}\n")
+
+        if len(filtered_findings) > 10:
+            print(f"... and {len(filtered_findings) - 10} more")
+
+        return 0
+
+    # Post to GitHub
+    try:
+        import requests
+    except ImportError:
+        print("Error: requests library required for GitHub integration", file=sys.stderr)
+        print("Install with: pip install rec-praxis-rlm[github]", file=sys.stderr)
+        return 1
+
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+    }
+
+    base_url = f"https://api.github.com/repos/{args.repo}"
+
+    # Get PR details to find commit SHA
+    if not args.commit_sha:
+        pr_url = f"{base_url}/pulls/{args.pr_number}"
+        pr_response = requests.get(pr_url, headers=headers)
+        if pr_response.status_code != 200:
+            print(f"Error fetching PR: {pr_response.status_code}", file=sys.stderr)
+            return 1
+        pr_data = pr_response.json()
+        commit_sha = pr_data["head"]["sha"]
+    else:
+        commit_sha = args.commit_sha
+
+    # Post summary comment
+    summary_body = f"""## 🔒 rec-praxis-rlm Security Scan Results
+
+**Found {len(filtered_findings)} issue(s) at {args.severity}+ severity**
+
+### Severity Breakdown
+"""
+
+    for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
+        if sev in severity_counts:
+            emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}[sev]
+            summary_body += f"- {emoji} **{sev}**: {severity_counts[sev]}\n"
+
+    summary_body += f"\n### Top Issues\n\n"
+
+    for idx, finding in enumerate(filtered_findings[:5], 1):
+        emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFO": "ℹ️"}[finding.severity.name]
+        summary_body += f"{idx}. {emoji} **{finding.title}** ({finding.severity.name})\n"
+        summary_body += f"   - File: `{finding.file_path}:{finding.line_number}`\n"
+        summary_body += f"   - {finding.description}\n\n"
+
+    if len(filtered_findings) > 5:
+        summary_body += f"\n*...and {len(filtered_findings) - 5} more issue(s)*\n"
+
+    summary_body += f"\n---\n*Powered by [rec-praxis-rlm](https://github.com/jmanhype/rec-praxis-rlm)*"
+
+    # Post summary comment
+    comments_url = f"{base_url}/issues/{args.pr_number}/comments"
+    comment_response = requests.post(
+        comments_url,
+        headers=headers,
+        json={"body": summary_body}
+    )
+
+    if comment_response.status_code not in (200, 201):
+        print(f"Warning: Failed to post summary comment: {comment_response.status_code}", file=sys.stderr)
+    else:
+        print(f"✅ Posted summary comment on PR #{args.pr_number}")
+
+    # Post inline review comments (up to 20 to avoid spam)
+    review_comments = []
+    for finding in filtered_findings[:20]:
+        emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFO": "ℹ️"}[finding.severity.name]
+        comment_body = f"{emoji} **{finding.severity.name}: {finding.title}**\n\n"
+        comment_body += f"{finding.description}\n\n"
+        comment_body += f"**Remediation:**\n{finding.remediation}"
+
+        review_comments.append({
+            "path": finding.file_path,
+            "line": finding.line_number or 1,
+            "body": comment_body
+        })
+
+    if review_comments:
+        review_url = f"{base_url}/pulls/{args.pr_number}/reviews"
+        review_response = requests.post(
+            review_url,
+            headers=headers,
+            json={
+                "commit_id": commit_sha,
+                "body": f"Found {len(filtered_findings)} security issue(s)",
+                "event": "COMMENT",
+                "comments": review_comments
+            }
+        )
+
+        if review_response.status_code not in (200, 201):
+            print(f"Warning: Failed to post review comments: {review_response.status_code}", file=sys.stderr)
+            print(f"Response: {review_response.text}", file=sys.stderr)
+        else:
+            print(f"✅ Posted {len(review_comments)} inline review comment(s)")
+
+    return 0
+
+
 def main() -> int:
     """Main CLI entry point - dispatches to sub-commands."""
     parser = argparse.ArgumentParser(
@@ -673,6 +874,7 @@ Available commands:
   rec-praxis-review       - Code review pre-commit hook
   rec-praxis-audit        - Security audit pre-commit hook
   rec-praxis-deps         - Dependency & secret scanning hook
+  rec-praxis-pr-review    - Post findings as GitHub PR comments
         """
     )
     parser.add_argument("--version", action="version", version=f"rec-praxis-rlm {__version__}")
