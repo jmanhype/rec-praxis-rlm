@@ -53,9 +53,10 @@ class Experience(BaseModel):
         embedding: Optional pre-computed goal embedding vector
         cost: Optional cost in dollars (for LLM calls)
         metadata: Optional metadata dictionary
+        privacy_level: Privacy classification (public/private/pii) for redaction control
     """
 
-    model_config = {"strict": True}
+    model_config = {"strict": False}  # Allow extra fields for forward compatibility
 
     env_features: list[str] = Field(
         ...,
@@ -94,6 +95,10 @@ class Experience(BaseModel):
         default_factory=dict,
         description="Optional metadata dictionary",
     )
+    privacy_level: str = Field(
+        default="public",
+        description="Privacy classification: public, private, or pii",
+    )
 
 
 class ProceduralMemory:
@@ -110,6 +115,7 @@ class ProceduralMemory:
         use_faiss: bool = True,
         embedding_provider: Optional[EmbeddingProvider] = None,
         fact_store: Optional["FactStore"] = None,
+        enable_privacy_redaction: bool = True,
     ) -> None:
         """Initialize procedural memory.
 
@@ -120,6 +126,7 @@ class ProceduralMemory:
                                If None, will create default provider from config.embedding_model
             fact_store: Optional FactStore for semantic memory integration.
                        If provided, facts will be auto-extracted from experiences.
+            enable_privacy_redaction: If True, automatically redact sensitive data before storage
         """
         self.config = config
         self.experiences: list[Experience] = []
@@ -142,6 +149,19 @@ class ProceduralMemory:
 
         # Store fact_store reference for semantic memory integration
         self.fact_store = fact_store
+
+        # Initialize privacy redactor if enabled
+        self.enable_privacy_redaction = enable_privacy_redaction
+        if self.enable_privacy_redaction:
+            try:
+                from rec_praxis_rlm.privacy import PrivacyRedactor
+                self.privacy_redactor = PrivacyRedactor()
+            except ImportError:
+                logger.warning("Privacy module not available, disabling redaction")
+                self.enable_privacy_redaction = False
+                self.privacy_redactor = None
+        else:
+            self.privacy_redactor = None
 
         # Corruption statistics (tracked during load)
         self.corruption_stats = {
@@ -560,6 +580,14 @@ class ProceduralMemory:
         Args:
             experience: Experience to store
         """
+        # Auto-redact sensitive data if enabled
+        if self.enable_privacy_redaction and self.privacy_redactor:
+            try:
+                experience = self.privacy_redactor.redact_experience(experience)
+                logger.debug(f"Redacted experience, privacy_level={experience.privacy_level}")
+            except Exception as e:
+                logger.warning(f"Privacy redaction failed: {e}")
+
         # Compute embedding if missing and provider available
         if experience.embedding is None and self.embedding_provider:
             try:

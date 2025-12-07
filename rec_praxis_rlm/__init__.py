@@ -29,6 +29,12 @@ from rec_praxis_rlm.compression import (
     LLMProvider,
     OpenAIProvider,
 )
+from rec_praxis_rlm.privacy import (
+    PrivacyRedactor,
+    RedactionPattern,
+    classify_privacy_level,
+    redact_secrets,
+)
 
 __all__ = [
     # Version
@@ -64,4 +70,9 @@ __all__ = [
     "ObservationCompressor",
     "LLMProvider",
     "OpenAIProvider",
+    # Privacy
+    "PrivacyRedactor",
+    "RedactionPattern",
+    "classify_privacy_level",
+    "redact_secrets",
 ]
