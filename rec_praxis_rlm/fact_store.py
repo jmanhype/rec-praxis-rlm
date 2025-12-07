@@ -73,7 +73,13 @@ class FactStore:
 
         Args:
             storage_path: Path to SQLite database file, or ":memory:" for in-memory
+
+        Raises:
+            ValueError: If path contains dangerous traversal patterns
         """
+        # Validate storage path to prevent path traversal
+        self._validate_storage_path(storage_path)
+
         self.storage_path = storage_path
 
         # Create parent directory if needed
@@ -82,6 +88,45 @@ class FactStore:
 
         self.conn = sqlite3.connect(storage_path, check_same_thread=False)
         self._init_schema()
+
+    def _validate_storage_path(self, path: str) -> None:
+        """Validate storage path to prevent path traversal attacks.
+
+        Args:
+            path: Storage path to validate
+
+        Raises:
+            ValueError: If path contains dangerous traversal patterns
+        """
+        # Allow :memory: for in-memory databases
+        if path == ":memory:":
+            return
+
+        # Resolve to absolute path to detect traversal
+        try:
+            abs_path = Path(path).resolve()
+        except (ValueError, OSError) as e:
+            raise ValueError(f"Invalid storage path '{path}': {e}")
+
+        # Reject absolute paths that try to escape to sensitive directories
+        dangerous_prefixes = ["/etc", "/sys", "/proc", "/dev", "/root", "C:\\Windows", "C:\\Program Files"]
+        abs_str = str(abs_path)
+        for prefix in dangerous_prefixes:
+            if abs_str.startswith(prefix):
+                raise ValueError(
+                    f"Storage path '{path}' resolves to dangerous location '{abs_path}'. "
+                    f"Paths cannot point to system directories."
+                )
+
+        # Check for path traversal attempts
+        if ".." in path:
+            # Parent traversal detected - make sure resolved path is safe
+            cwd = Path.cwd().resolve()
+            if not str(abs_path).startswith(str(cwd)):
+                raise ValueError(
+                    f"Storage path '{path}' attempts to escape current working directory. "
+                    f"Resolved to '{abs_path}' which is outside '{cwd}'."
+                )
 
     def _init_schema(self):
         """Create fact_store table and indexes."""

@@ -1,8 +1,10 @@
 """Configuration models for rec_praxis_rlm package."""
 
+import os
+from pathlib import Path
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Default maximum output characters for safe code execution
 # Prevents excessive memory usage from unbounded output
@@ -68,6 +70,56 @@ class MemoryConfig(BaseModel):
         default=50000,
         description="Maximum size of result string in bytes",
     )
+
+    @field_validator("storage_path")
+    @classmethod
+    def validate_storage_path(cls, v: str) -> str:
+        """Validate storage path to prevent path traversal attacks.
+
+        Args:
+            v: Storage path to validate
+
+        Returns:
+            Validated storage path
+
+        Raises:
+            ValueError: If path contains dangerous traversal patterns
+        """
+        # Allow :memory: for in-memory databases
+        if v == ":memory:":
+            return v
+
+        # Resolve to absolute path to detect traversal
+        try:
+            abs_path = Path(v).resolve()
+        except (ValueError, OSError) as e:
+            raise ValueError(f"Invalid storage path '{v}': {e}")
+
+        # Check for path traversal by comparing resolved path with input
+        # If resolved path escapes the expected directory, it's suspicious
+        input_path = Path(v)
+
+        # Reject absolute paths that try to escape to sensitive directories
+        dangerous_prefixes = ["/etc", "/sys", "/proc", "/dev", "/root", "C:\\Windows", "C:\\Program Files"]
+        abs_str = str(abs_path)
+        for prefix in dangerous_prefixes:
+            if abs_str.startswith(prefix):
+                raise ValueError(
+                    f"Storage path '{v}' resolves to dangerous location '{abs_path}'. "
+                    f"Paths cannot point to system directories."
+                )
+
+        # Warn about suspicious patterns (but don't reject - could be legitimate)
+        if ".." in v:
+            # Parent traversal detected - make sure resolved path is safe
+            cwd = Path.cwd().resolve()
+            if not str(abs_path).startswith(str(cwd)):
+                raise ValueError(
+                    f"Storage path '{v}' attempts to escape current working directory. "
+                    f"Resolved to '{abs_path}' which is outside '{cwd}'."
+                )
+
+        return v
 
     @model_validator(mode="after")
     def validate_weight_sum(self) -> "MemoryConfig":
