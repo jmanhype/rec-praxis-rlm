@@ -33,10 +33,8 @@ class Language(Enum):
 
 try:
     from coverage import Coverage
-    from coverage.files import FnmatchMatcher
 except ImportError:
     Coverage = None  # type: ignore
-    FnmatchMatcher = None  # type: ignore
 
 try:
     import dspy
