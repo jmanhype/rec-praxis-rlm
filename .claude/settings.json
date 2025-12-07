@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "post_tool_use": ".claude/hooks/post_tool_use.sh",
+    "session_start": ".claude/hooks/session_start.sh"
+  },
+  "description": "Claude Code hooks for automatic rec-praxis-rlm experience capture"
+}

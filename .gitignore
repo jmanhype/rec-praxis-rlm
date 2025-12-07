@@ -61,3 +61,5 @@ mlartifacts/
 # Storage
 *.jsonl
 memory.jsonl
+# Claude Code memory (auto-generated)
+.claude/memory.jsonl
