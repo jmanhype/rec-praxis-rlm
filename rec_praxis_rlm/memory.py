@@ -325,9 +325,13 @@ class ProceduralMemory:
                 suffix=".tmp",
             )
 
+            fd_opened = False  # Track if fd was successfully converted to file object
             try:
                 # Copy existing content + new experience
-                with os.fdopen(fd, "w") as temp_file:
+                temp_file = os.fdopen(fd, "w")
+                fd_opened = True  # Mark fd as successfully opened
+
+                with temp_file:
                     if os.path.exists(self.config.storage_path):
                         # File exists - acquire lock and copy existing content
                         with open(self.config.storage_path, "r") as existing:
@@ -355,6 +359,13 @@ class ProceduralMemory:
                 # Atomic rename
                 os.replace(temp_path, self.config.storage_path)
             except Exception:
+                # Clean up file descriptor if not opened
+                if not fd_opened:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass  # Already closed or invalid
+
                 # Clean up temp file on error
                 if os.path.exists(temp_path):  # pragma: no branch
                     os.unlink(temp_path)
