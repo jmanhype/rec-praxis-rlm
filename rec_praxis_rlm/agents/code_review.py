@@ -160,10 +160,39 @@ class CodeReviewAgent:
                     remediation="Use logging module: logger.info('message') instead of print()"
                 ))
 
-        # 6. Eval/exec usage
+        # 6. Eval/exec usage (filter out false positives in strings/comments)
         dangerous_funcs = self.rlm.grep(r"\b(eval|exec)\s*\(", doc_id=file_path)
         if dangerous_funcs:
+            # Get full content to check line context
+            lines = content.split('\n')
+
             for match in dangerous_funcs:
+                # Skip if it's in a comment line
+                if match.line_number <= len(lines):
+                    full_line = lines[match.line_number - 1]
+                    stripped = full_line.strip()
+
+                    # Skip comment lines
+                    if stripped.startswith('#'):
+                        continue
+
+                    # Skip if eval/exec appears after a quote on the same line
+                    # This catches: description = "The eval() function..."
+                    match_pos = full_line.find('eval(') if 'eval(' in full_line else full_line.find('exec(')
+                    if match_pos > 0:
+                        # Check if there's an opening quote before the match
+                        before_match = full_line[:match_pos]
+                        # Count quotes before the match
+                        double_quotes = before_match.count('"')
+                        single_quotes = before_match.count("'")
+                        # If odd number of quotes, we're inside a string literal
+                        if double_quotes % 2 == 1 or single_quotes % 2 == 1:
+                            continue
+
+                    # Also skip if line contains string assignment keywords
+                    if any(keyword in full_line for keyword in ['description=', 'remediation=', 'title=', 'help=']):
+                        continue
+
                 findings.append(Finding(
                     file_path=file_path,
                     line_number=match.line_number,
