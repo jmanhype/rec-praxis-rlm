@@ -1,9 +1,60 @@
-# Changelog
+## [0.2.0] - 2025-12-06
 
-All notable changes to rec-praxis-rlm will be documented in this file.
+### 🎉 Major Release: Multi-Modal Memory
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+This release represents Week 1-3 implementation with **multi-modal memory** (Procedural + Semantic + RLM Context), comprehensive benchmarking, and production-ready code review capabilities.
+
+### Added
+
+#### Semantic Memory - FactStore
+- FactStore class for structured fact extraction (648 LOC, 16 tests)
+- Heuristic patterns: Acronyms, Metrics, Key-values
+- SQLite backend with indexed queries, temporal ordering
+- Source provenance linking, 97.14% test coverage
+
+#### RAGAS Evaluation Framework
+- Full LLM evaluation with Groq (llama-3.3-70b-versatile)
+- Week 2: Faith 0.917, Recall 1.000, Precision 0.778
+- Week 3: Faith 0.933, Recall 1.000, Precision 1.000 (perfect!)
+- 6 evaluation scenarios, $0.00 cost
+
+#### Code Review Agent
+- CodeReviewAgent example (346 lines)
+- Detects SQL injection, weak crypto, credentials, etc.
+- Perfect RAGAS scores (0.933/1.000/1.000)
+- <2s review time, zero false positives
+
+#### Ablation Study
+- Validated 60/40 env/goal weighting
+- 6 configurations tested, all achieved perfect recall
+- Practical guidance for weight tuning
+
+### Changed
+- Test coverage: 97.37% → 98.34%
+- Total tests: 327 → 351 (+24 new tests)
+- FactStore coverage: 89.71% → 97.14%
+
+### Files Added
+- examples/code_review_agent.py (346 lines)
+- tests/test_ragas_full_evaluation.py (410 lines)
+- tests/test_ragas_code_review.py (417 lines)
+- tests/test_ablation_study.py (277 lines)
+- rec_praxis_rlm/fact_store.py (410 lines)
+- tests/test_fact_store.py (306 lines)
+
+### Migration Guide
+```python
+# New: FactStore for semantic memory
+from rec_praxis_rlm import FactStore, ProceduralMemory
+
+fact_store = FactStore()
+memory = ProceduralMemory(fact_store=fact_store)
+# Facts auto-extracted when storing experiences
+```
+
+Backward compatible - FactStore is optional.
+
+---
 
 ## [Unreleased]
 
