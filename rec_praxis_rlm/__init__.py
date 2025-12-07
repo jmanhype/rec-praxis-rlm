@@ -24,6 +24,11 @@ from rec_praxis_rlm.types import (
     SecretFinding,
     AuditReport,
 )
+from rec_praxis_rlm.compression import (
+    ObservationCompressor,
+    LLMProvider,
+    OpenAIProvider,
+)
 
 __all__ = [
     # Version
@@ -55,4 +60,8 @@ __all__ = [
     "CVEFinding",
     "SecretFinding",
     "AuditReport",
+    # Compression
+    "ObservationCompressor",
+    "LLMProvider",
+    "OpenAIProvider",
 ]
