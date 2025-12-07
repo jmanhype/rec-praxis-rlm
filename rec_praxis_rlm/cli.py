@@ -17,6 +17,232 @@ from typing import List, Optional
 from rec_praxis_rlm import __version__
 
 
+def calculate_quality_score(findings: List, total_lines: int = 1000) -> float:
+    """Calculate quality score based on findings (0-100 scale).
+
+    Args:
+        findings: List of Finding objects
+        total_lines: Total lines of code scanned (for normalization)
+
+    Returns:
+        Quality score from 0-100 (100 = perfect, 0 = critical issues)
+    """
+    if not findings:
+        return 100.0
+
+    # Severity weights (how many points each severity deducts)
+    severity_weights = {
+        "CRITICAL": 10.0,
+        "HIGH": 5.0,
+        "MEDIUM": 2.0,
+        "LOW": 0.5,
+        "INFO": 0.1
+    }
+
+    # Calculate total penalty
+    total_penalty = 0.0
+    for finding in findings:
+        weight = severity_weights.get(finding.severity.name, 1.0)
+        total_penalty += weight
+
+    # Normalize by code size (more lines → more tolerant)
+    normalized_penalty = (total_penalty / (total_lines / 100))
+
+    # Convert to 0-100 score
+    score = max(0.0, 100.0 - normalized_penalty)
+
+    return score
+
+
+def run_iterative_improvement(
+    agent,
+    files: List[str],
+    severity: str,
+    format: str,
+    output: Optional[str],
+    max_iterations: int,
+    target_score: int,
+    auto_fix: bool,
+    mlflow_experiment: Optional[str],
+    memory_dir: Path,
+    scan_start: float
+) -> int:
+    """Run iterative improvement mode with autonomous quality optimization.
+
+    Args:
+        agent: CodeReviewAgent instance
+        files: List of file paths to review
+        severity: Minimum severity threshold
+        format: Output format
+        output: Output file path
+        max_iterations: Maximum iterations to run
+        target_score: Target quality score (0-100)
+        auto_fix: Whether to suggest fixes
+        mlflow_experiment: MLflow experiment name (optional)
+        memory_dir: Memory directory path
+        scan_start: Scan start timestamp
+
+    Returns:
+        0 if target reached, 1 otherwise
+    """
+    print(f"\n🔄 Iterative Improvement Mode")
+    print(f"Target: {target_score}% quality score")
+    print(f"Max iterations: {max_iterations}\n")
+
+    # Track progress across iterations
+    iteration_history = []
+    current_score = 0.0
+    severity_order = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+    threshold = severity_order[severity]
+
+    # Read files once
+    files_content = {}
+    total_lines = 0
+    for file_path in files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                files_content[file_path] = content
+                total_lines += len(content.split('\n'))
+        except Exception as e:
+            print(f"Error reading {file_path}: {e}", file=sys.stderr)
+
+    for iteration in range(1, max_iterations + 1):
+        print(f"\n{'='*60}")
+        print(f"Iteration {iteration}/{max_iterations}")
+        print(f"{'='*60}")
+
+        # Run review
+        all_findings = agent.review_code(files_content)
+
+        # Calculate quality score
+        current_score = calculate_quality_score(all_findings, total_lines)
+
+        # Filter by severity threshold
+        blocking_findings = [
+            f for f in all_findings
+            if severity_order[f.severity.name] >= threshold
+        ]
+
+        # Display results
+        print(f"\n📊 Results:")
+        print(f"  Quality Score: {current_score:.1f}%")
+        print(f"  Total Findings: {len(all_findings)}")
+        print(f"  Blocking Findings: {len(blocking_findings)}")
+
+        # Group by severity
+        severity_counts = {}
+        for f in all_findings:
+            severity_counts[f.severity.name] = severity_counts.get(f.severity.name, 0) + 1
+
+        if severity_counts:
+            print(f"  Severity Breakdown:")
+            for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
+                if sev in severity_counts:
+                    print(f"    {sev}: {severity_counts[sev]}")
+
+        # Store iteration history
+        iteration_history.append({
+            "iteration": iteration,
+            "score": current_score,
+            "total_findings": len(all_findings),
+            "blocking_findings": len(blocking_findings),
+            "severity_counts": severity_counts
+        })
+
+        # Check if target reached
+        if current_score >= target_score:
+            print(f"\n✅ Target score reached! ({current_score:.1f}% >= {target_score}%)")
+            print(f"   Completed in {iteration} iteration(s)")
+            break
+
+        # Show improvement suggestions if auto-fix enabled
+        if auto_fix and all_findings:
+            print(f"\n💡 Suggested Fixes for Next Iteration:")
+
+            # Prioritize CRITICAL and HIGH findings
+            priority_findings = [f for f in all_findings if f.severity.name in ("CRITICAL", "HIGH")][:5]
+
+            for idx, finding in enumerate(priority_findings, 1):
+                print(f"\n{idx}. {finding.title} ({finding.severity.name})")
+                print(f"   File: {finding.file_path}:{finding.line_number}")
+                print(f"   Fix: {finding.remediation}")
+
+        # If not last iteration, explain what happens next
+        if iteration < max_iterations and current_score < target_score:
+            print(f"\n🔄 Continuing to iteration {iteration + 1}...")
+            print(f"   Current: {current_score:.1f}% | Target: {target_score}% | Gap: {target_score - current_score:.1f}%")
+
+    # Final summary
+    print(f"\n{'='*60}")
+    print(f"📈 Improvement Summary")
+    print(f"{'='*60}")
+
+    if iteration_history:
+        initial_score = iteration_history[0]["score"]
+        final_score = iteration_history[-1]["score"]
+        improvement = final_score - initial_score
+
+        print(f"Initial Score: {initial_score:.1f}%")
+        print(f"Final Score: {final_score:.1f}%")
+        print(f"Improvement: {'+' if improvement >= 0 else ''}{improvement:.1f}%")
+        print(f"Iterations: {len(iteration_history)}")
+
+        # Show progression
+        if len(iteration_history) > 1:
+            print(f"\nProgression:")
+            for entry in iteration_history:
+                bar_length = int(entry["score"] / 2)  # Scale to 50 chars max
+                bar = "█" * bar_length
+                print(f"  Iter {entry['iteration']}: {bar} {entry['score']:.1f}%")
+
+    # Log to MLflow if enabled
+    if mlflow_experiment:
+        try:
+            from rec_praxis_rlm.telemetry import log_security_scan_metrics
+            import mlflow
+
+            scan_duration = time.time() - scan_start
+
+            with mlflow.start_run(run_name=f"iterative_review_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"):
+                log_security_scan_metrics(
+                    findings=all_findings,
+                    scan_type="iterative_code_review",
+                    files_scanned=len(files),
+                    scan_duration_seconds=scan_duration
+                )
+                # Log iteration metrics
+                mlflow.log_metric("iterations", len(iteration_history))
+                mlflow.log_metric("final_score", current_score)
+                mlflow.log_metric("target_score", target_score)
+                mlflow.log_metric("improvement", improvement if iteration_history else 0)
+        except Exception as e:
+            print(f"Warning: Failed to log metrics to MLflow: {e}", file=sys.stderr)
+
+    # Output final results in requested format
+    if format == "json":
+        output_data = {
+            "mode": "iterative",
+            "iterations": len(iteration_history),
+            "final_score": current_score,
+            "target_score": target_score,
+            "target_reached": current_score >= target_score,
+            "total_findings": len(all_findings),
+            "blocking_findings": len(blocking_findings),
+            "iteration_history": iteration_history,
+            "findings": [f.to_dict() for f in all_findings]
+        }
+        print(f"\n{json.dumps(output_data, indent=2)}")
+    elif format == "html":
+        from rec_praxis_rlm.reporters import generate_html_report
+        output_path = output or "iterative-code-review-report.html"
+        report_path = generate_html_report(all_findings, output_path)
+        print(f"\n✅ HTML report generated: {report_path}")
+
+    # Return success if target reached
+    return 0 if current_score >= target_score else 1
+
+
 def cli_code_review() -> int:
     """Pre-commit hook: Run code review on staged files.
 
@@ -39,6 +265,15 @@ def cli_code_review() -> int:
                        help="Directory for procedural memory storage")
     parser.add_argument("--mlflow-experiment", type=str,
                        help="MLflow experiment name for metrics tracking (optional)")
+    parser.add_argument("--mode", default="standard",
+                       choices=["standard", "iterative"],
+                       help="Execution mode: standard (single pass) or iterative (autonomous improvement)")
+    parser.add_argument("--max-iterations", type=int, default=5,
+                       help="Maximum iterations for iterative mode (default: 5)")
+    parser.add_argument("--target-score", type=int, default=95,
+                       help="Target quality score for iterative mode (0-100, default: 95)")
+    parser.add_argument("--auto-fix", action="store_true",
+                       help="Automatically suggest fixes in iterative mode")
     args = parser.parse_args()
 
     # Handle legacy --json flag
@@ -69,6 +304,14 @@ def cli_code_review() -> int:
 
     # Track scan start time for metrics
     scan_start = time.time()
+
+    # Route to iterative mode if requested
+    if args.mode == "iterative":
+        return run_iterative_improvement(
+            agent, args.files, args.severity, args.format, args.output,
+            args.max_iterations, args.target_score, args.auto_fix,
+            args.mlflow_experiment, memory_dir, scan_start
+        )
 
     # Read and review files
     all_findings = []

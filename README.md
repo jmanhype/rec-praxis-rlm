@@ -657,6 +657,139 @@ rec-praxis-audit app.py --format=html --output=audit-report.html
 rec-praxis-deps --requirements=requirements.txt --files src/*.py --format=html --output=deps-report.html
 ```
 
+### Iterative Improvement Mode
+
+Autonomous security improvement mode similar to Qodo-Cover's coverage-driven iteration, but for security quality (v0.5.0+):
+
+**Features**:
+- Run multiple LLM iterations until quality score target met
+- Each iteration learns from previous failures via procedural memory
+- Auto-suggest fixes for detected issues (prioritizes CRITICAL/HIGH)
+- Re-scan with fixes applied to validate improvement
+- Track quality score progression with visual progress bars
+- Stop when target reached or max iterations hit
+- MLflow integration for tracking improvement metrics
+
+**Example Usage**:
+
+```bash
+# Iterative mode with default settings (target: 95%, max: 5 iterations)
+rec-praxis-review src/app.py --mode=iterative
+
+# Custom target and iteration limit
+rec-praxis-review src/**/*.py \
+  --mode=iterative \
+  --max-iterations=10 \
+  --target-score=98
+
+# With auto-fix suggestions
+rec-praxis-review src/**/*.py \
+  --mode=iterative \
+  --target-score=95 \
+  --auto-fix
+
+# With MLflow tracking
+rec-praxis-review src/**/*.py \
+  --mode=iterative \
+  --max-iterations=7 \
+  --target-score=90 \
+  --auto-fix \
+  --mlflow-experiment=iterative-improvement
+```
+
+**Quality Score Calculation**:
+
+The quality score (0-100) is calculated based on:
+- **CRITICAL findings**: -10 points each
+- **HIGH findings**: -5 points each
+- **MEDIUM findings**: -2 points each
+- **LOW findings**: -0.5 points each
+- **INFO findings**: -0.1 points each
+- Normalized by code size (more lines → more tolerant)
+
+**Output Example**:
+
+```
+🔄 Iterative Improvement Mode
+Target: 95% quality score
+Max iterations: 5
+
+============================================================
+Iteration 1/5
+============================================================
+
+📊 Results:
+  Quality Score: 72.5%
+  Total Findings: 12
+  Blocking Findings: 3
+  Severity Breakdown:
+    CRITICAL: 1
+    HIGH: 2
+    MEDIUM: 5
+    LOW: 4
+
+💡 Suggested Fixes for Next Iteration:
+
+1. Hardcoded Credentials (CRITICAL)
+   File: src/app.py:45
+   Fix: Use environment variables: os.getenv('API_KEY')
+
+2. SQL Injection Risk (HIGH)
+   File: src/db.py:78
+   Fix: Use parameterized queries: cursor.execute('SELECT * FROM users WHERE id=?', (user_id,))
+
+🔄 Continuing to iteration 2...
+   Current: 72.5% | Target: 95% | Gap: 22.5%
+
+... (iterations 2-4) ...
+
+✅ Target score reached! (96.2% >= 95%)
+   Completed in 4 iteration(s)
+
+============================================================
+📈 Improvement Summary
+============================================================
+Initial Score: 72.5%
+Final Score: 96.2%
+Improvement: +23.7%
+Iterations: 4
+
+Progression:
+  Iter 1: ████████████████████████████████████ 72.5%
+  Iter 2: ███████████████████████████████████████████ 85.0%
+  Iter 3: █████████████████████████████████████████████ 91.3%
+  Iter 4: ████████████████████████████████████████████████ 96.2%
+```
+
+**JSON Output**:
+
+```json
+{
+  "mode": "iterative",
+  "iterations": 4,
+  "final_score": 96.2,
+  "target_score": 95,
+  "target_reached": true,
+  "total_findings": 2,
+  "blocking_findings": 0,
+  "iteration_history": [
+    {"iteration": 1, "score": 72.5, "total_findings": 12, "blocking_findings": 3},
+    {"iteration": 2, "score": 85.0, "total_findings": 6, "blocking_findings": 1},
+    {"iteration": 3, "score": 91.3, "total_findings": 4, "blocking_findings": 0},
+    {"iteration": 4, "score": 96.2, "total_findings": 2, "blocking_findings": 0}
+  ],
+  "findings": [...]
+}
+```
+
+**Use Cases**:
+- Autonomous security improvement ("set it and forget it")
+- CI/CD pipelines with quality gates
+- Pre-release security hardening
+- Continuous security posture improvement
+- A/B testing security fix strategies
+- Demonstrating security improvement progress to stakeholders
+
 **Report Contents**:
 - Summary cards (Total findings, Critical count, High count, Medium/Low count)
 - Severity distribution donut chart (powered by Chart.js)
