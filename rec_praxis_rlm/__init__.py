@@ -6,6 +6,7 @@ from rec_praxis_rlm.memory import ProceduralMemory, Experience
 from rec_praxis_rlm.rlm import RLMContext, SearchMatch, ExecutionResult
 from rec_praxis_rlm.config import MemoryConfig, ReplConfig, PlannerConfig
 from rec_praxis_rlm.dspy_agent import PraxisRLMPlanner
+from rec_praxis_rlm.fact_store import FactStore, Fact
 from rec_praxis_rlm.telemetry import (
     setup_mlflow_tracing,
     add_telemetry_hook,
@@ -26,6 +27,8 @@ __all__ = [
     "SearchMatch",
     "ExecutionResult",
     "PraxisRLMPlanner",
+    "FactStore",
+    "Fact",
     # Configuration
     "MemoryConfig",
     "ReplConfig",
