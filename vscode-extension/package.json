@@ -2,7 +2,7 @@
   "name": "rec-praxis-rlm-vscode",
   "displayName": "rec-praxis-rlm Code Intelligence",
   "description": "Intelligent code review, security audit, and dependency scanning powered by procedural memory",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "publisher": "jmanhype",
   "engines": {
     "vscode": "^1.85.0"
