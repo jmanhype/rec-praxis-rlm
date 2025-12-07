@@ -82,6 +82,30 @@ class UncoveredRegion:
 
 
 @dataclass
+class UncoveredBranch:
+    """Represents an uncovered branch (if/else, try/except, etc.) that needs test coverage."""
+    file_path: str
+    source_line: int  # Line where the branch starts
+    target_line: int  # Line where the branch goes (or -1 for exit)
+    branch_type: str  # "if", "else", "elif", "try", "except", "finally", "match", "case"
+    function_name: Optional[str] = None
+    class_name: Optional[str] = None
+    condition: Optional[str] = None  # The branch condition (for if/elif)
+
+    def to_dict(self) -> dict:
+        """Convert to JSON-serializable dict."""
+        return {
+            "file": self.file_path,
+            "source_line": self.source_line,
+            "target_line": self.target_line,
+            "branch_type": self.branch_type,
+            "function": self.function_name,
+            "class": self.class_name,
+            "condition": self.condition,
+        }
+
+
+@dataclass
 class GeneratedTest:
     """Represents a generated pytest test."""
     test_code: str
@@ -111,16 +135,28 @@ class CoverageAnalysis:
     files_analyzed: int
     lines_covered: int
     lines_total: int
+    # v0.7.0: Branch coverage analysis
+    branch_coverage: Optional[float] = None  # 0.0-100.0
+    uncovered_branches: Optional[List[UncoveredBranch]] = None
+    branches_covered: int = 0
+    branches_total: int = 0
 
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dict."""
-        return {
+        result = {
             "total_coverage": self.total_coverage,
             "uncovered_regions": [r.to_dict() for r in self.uncovered_regions],
             "files_analyzed": self.files_analyzed,
             "lines_covered": self.lines_covered,
             "lines_total": self.lines_total,
         }
+        # Add branch coverage if available
+        if self.branch_coverage is not None:
+            result["branch_coverage"] = self.branch_coverage
+            result["uncovered_branches"] = [b.to_dict() for b in (self.uncovered_branches or [])]
+            result["branches_covered"] = self.branches_covered
+            result["branches_total"] = self.branches_total
+        return result
 
 
 class TestGenerationAgent:
@@ -140,7 +176,8 @@ class TestGenerationAgent:
         coverage_data_file: str = ".coverage",
         test_dir: str = "tests",
         lm_model: Optional[str] = None,
-        use_dspy: bool = False
+        use_dspy: bool = False,
+        analyze_branches: bool = True  # v0.7.0: Enable branch coverage analysis
     ):
         """Initialize test generation agent.
 
@@ -152,11 +189,13 @@ class TestGenerationAgent:
             lm_model: Language model for DSPy test generation (e.g., "groq/llama-3.3-70b-versatile")
                      If None, uses template-based generation
             use_dspy: Whether to use DSPy for intelligent test generation (requires lm_model)
+            analyze_branches: Whether to analyze branch coverage (v0.7.0+)
         """
         self.memory_path = memory_path
         self.coverage_data_file = Path(coverage_data_file)
         self.test_dir = Path(test_dir)
         self.use_dspy = use_dspy and lm_model is not None
+        self.analyze_branches = analyze_branches
 
         self.memory = ProceduralMemory(
             config=MemoryConfig(
@@ -269,12 +308,27 @@ class TestGenerationAgent:
         # Calculate total coverage percentage
         total_coverage = (covered_lines / total_lines * 100) if total_lines > 0 else 0.0
 
+        # v0.7.0: Analyze branch coverage if requested
+        branch_coverage = None
+        uncovered_branches = None
+        branches_covered = 0
+        branches_total = 0
+
+        if self.analyze_branches:
+            branch_coverage, uncovered_branches, branches_covered, branches_total = (
+                self._analyze_branch_coverage(cov, measured_files)
+            )
+
         return CoverageAnalysis(
             total_coverage=total_coverage,
             uncovered_regions=uncovered_regions,
             files_analyzed=files_analyzed,
             lines_covered=covered_lines,
             lines_total=total_lines,
+            branch_coverage=branch_coverage,
+            uncovered_branches=uncovered_branches,
+            branches_covered=branches_covered,
+            branches_total=branches_total,
         )
 
     def _group_missing_lines(
@@ -370,6 +424,203 @@ class TestGenerationAgent:
             class_name=class_name,
             complexity=max(1, end_line - start_line + 1)  # Simple complexity estimate
         )
+
+    def _analyze_branch_coverage(
+        self,
+        cov: Coverage,
+        measured_files: List[str]
+    ) -> Tuple[Optional[float], List[UncoveredBranch], int, int]:
+        """Analyze branch coverage and identify uncovered branches.
+
+        Args:
+            cov: Coverage object with loaded data
+            measured_files: List of files to analyze
+
+        Returns:
+            Tuple of (branch_coverage_pct, uncovered_branches, branches_covered, branches_total)
+        """
+        uncovered_branches: List[UncoveredBranch] = []
+        total_branch_exits = 0
+        covered_branch_exits = 0
+
+        for file_path in measured_files:
+            try:
+                # Get branch statistics for this file
+                branch_stats = cov.branch_stats(file_path)
+
+                if not branch_stats:
+                    continue
+
+                # branch_stats is a dict: {line_no: (total_exits, taken_exits)}
+                for line_no, (total_exits, taken_exits) in branch_stats.items():
+                    total_branch_exits += total_exits
+                    covered_branch_exits += taken_exits
+
+                    # If not all exits were taken, we have uncovered branches
+                    if taken_exits < total_exits:
+                        # Identify the uncovered branches using AST
+                        branches = self._identify_uncovered_branches_at_line(
+                            file_path, line_no, total_exits, taken_exits
+                        )
+                        uncovered_branches.extend(branches)
+
+            except Exception:
+                # Skip files that don't have branch coverage or can't be analyzed
+                continue
+
+        # Calculate branch coverage percentage
+        branch_coverage_pct = None
+        if total_branch_exits > 0:
+            branch_coverage_pct = (covered_branch_exits / total_branch_exits * 100)
+
+        return branch_coverage_pct, uncovered_branches, covered_branch_exits, total_branch_exits
+
+    def _identify_uncovered_branches_at_line(
+        self,
+        file_path: str,
+        line_no: int,
+        total_exits: int,
+        taken_exits: int
+    ) -> List[UncoveredBranch]:
+        """Identify which specific branches are uncovered at a given line.
+
+        Args:
+            file_path: Path to source file
+            line_no: Line number with uncovered branches
+            total_exits: Total number of branch exits
+            taken_exits: Number of taken branch exits
+
+        Returns:
+            List of UncoveredBranch objects
+        """
+        branches: List[UncoveredBranch] = []
+
+        try:
+            with open(file_path, 'r') as f:
+                source = f.read()
+
+            tree = ast.parse(source, filename=file_path)
+            lines = source.split('\n')
+
+            # Find the AST node at this line
+            for node in ast.walk(tree):
+                if not hasattr(node, 'lineno') or node.lineno != line_no:
+                    continue
+
+                # Get function/class context
+                function_name, class_name = self._get_function_context(tree, node)
+
+                # Handle different types of conditional statements
+                if isinstance(node, ast.If):
+                    # If statement with possible else/elif
+                    condition = ast.unparse(node.test) if hasattr(ast, 'unparse') else lines[line_no - 1].strip()
+
+                    # If we have uncovered branches, create branch objects
+                    # Note: This is simplified - actual implementation would need
+                    # to determine which specific branch (if/elif/else) is uncovered
+                    if taken_exits < total_exits:
+                        # Create branch for the "true" path
+                        branches.append(UncoveredBranch(
+                            file_path=file_path,
+                            source_line=line_no,
+                            target_line=node.body[0].lineno if node.body else line_no + 1,
+                            branch_type="if",
+                            function_name=function_name,
+                            class_name=class_name,
+                            condition=condition
+                        ))
+
+                        # If there's an else clause and it's uncovered
+                        if node.orelse:
+                            branches.append(UncoveredBranch(
+                                file_path=file_path,
+                                source_line=line_no,
+                                target_line=node.orelse[0].lineno,
+                                branch_type="else",
+                                function_name=function_name,
+                                class_name=class_name,
+                                condition=f"not ({condition})"
+                            ))
+
+                elif isinstance(node, ast.Try) or (hasattr(ast, 'TryStar') and isinstance(node, ast.TryStar)):
+                    # Try/except block (TryStar is Python 3.11+)
+                    if taken_exits < total_exits:
+                        branches.append(UncoveredBranch(
+                            file_path=file_path,
+                            source_line=line_no,
+                            target_line=node.handlers[0].lineno if node.handlers else line_no + 1,
+                            branch_type="except",
+                            function_name=function_name,
+                            class_name=class_name,
+                            condition=None
+                        ))
+
+                elif hasattr(ast, 'Match') and isinstance(node, ast.Match):
+                    # Match/case statement (Python 3.10+)
+                    if taken_exits < total_exits:
+                        for case in node.cases:
+                            branches.append(UncoveredBranch(
+                                file_path=file_path,
+                                source_line=line_no,
+                                target_line=case.body[0].lineno if case.body else line_no + 1,
+                                branch_type="case",
+                                function_name=function_name,
+                                class_name=class_name,
+                                condition=ast.unparse(case.pattern) if hasattr(ast, 'unparse') else "case"
+                            ))
+
+        except Exception:
+            # If AST parsing fails, create a generic uncovered branch
+            if taken_exits < total_exits:
+                branches.append(UncoveredBranch(
+                    file_path=file_path,
+                    source_line=line_no,
+                    target_line=-1,
+                    branch_type="unknown",
+                    function_name=None,
+                    class_name=None,
+                    condition=None
+                ))
+
+        return branches
+
+    def _get_function_context(
+        self,
+        tree: ast.AST,
+        node: ast.AST
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Get the function and class context for a given AST node.
+
+        Args:
+            tree: Full AST tree
+            node: Node to find context for
+
+        Returns:
+            Tuple of (function_name, class_name)
+        """
+        function_name = None
+        class_name = None
+
+        if not hasattr(node, 'lineno'):
+            return function_name, class_name
+
+        # Find the enclosing function
+        for func_node in ast.walk(tree):
+            if isinstance(func_node, ast.FunctionDef):
+                if (hasattr(func_node, 'lineno') and hasattr(func_node, 'end_lineno') and
+                    func_node.lineno <= node.lineno <= (func_node.end_lineno or float('inf'))):
+                    function_name = func_node.name
+
+                    # Check if function is inside a class
+                    for class_node in ast.walk(tree):
+                        if isinstance(class_node, ast.ClassDef):
+                            if (hasattr(class_node, 'lineno') and hasattr(class_node, 'end_lineno') and
+                                class_node.lineno <= func_node.lineno <= (class_node.end_lineno or float('inf'))):
+                                class_name = class_node.name
+                                break
+                    break
+
+        return function_name, class_name
 
     def generate_test(
         self,
@@ -707,9 +958,13 @@ def test_{region.function_name}_basic():
         # Analyze current coverage
         analysis = self.analyze_coverage(source_files)
 
-        print(f"Current coverage: {analysis.total_coverage:.1f}%")
+        print(f"Current line coverage: {analysis.total_coverage:.1f}%")
+        # v0.7.0: Display branch coverage if available
+        if analysis.branch_coverage is not None:
+            print(f"Current branch coverage: {analysis.branch_coverage:.1f}%")
+            print(f"Found {len(analysis.uncovered_branches or [])} uncovered branches")
         print(f"Target coverage: {target_coverage:.1f}%")
-        print(f"Found {len(analysis.uncovered_regions)} uncovered regions")
+        print(f"Found {len(analysis.uncovered_regions)} uncovered line regions")
 
         if analysis.total_coverage >= target_coverage:
             print("Target coverage already met!")

@@ -896,6 +896,10 @@ def cli_generate_tests() -> int:
                        help="Use DSPy LLM for intelligent test generation with assertions (v0.6.0+)")
     parser.add_argument("--lm-model", default="groq/llama-3.3-70b-versatile",
                        help="Language model for DSPy (default: groq/llama-3.3-70b-versatile)")
+    parser.add_argument("--analyze-branches", action="store_true", default=True,
+                       help="Analyze branch coverage (if/else, try/except) in addition to line coverage (v0.7.0+, default: True)")
+    parser.add_argument("--no-analyze-branches", dest="analyze_branches", action="store_false",
+                       help="Disable branch coverage analysis (v0.7.0+)")
     args = parser.parse_args()
 
     # Lazy import
@@ -922,6 +926,7 @@ def cli_generate_tests() -> int:
         "memory_path": str(memory_dir / "test_generation_memory.jsonl"),
         "coverage_data_file": args.coverage_file,
         "test_dir": args.test_dir,
+        "analyze_branches": args.analyze_branches,  # v0.7.0: Branch coverage analysis
     }
 
     # Add DSPy parameters if requested
@@ -930,6 +935,11 @@ def cli_generate_tests() -> int:
         agent_params["lm_model"] = args.lm_model
         print(f"🤖 Using DSPy with model: {args.lm_model}")
         print(f"   Tests will include assertions (not TODO stubs)\n")
+
+    # v0.7.0: Display branch coverage mode
+    if args.analyze_branches:
+        print(f"📊 Branch coverage analysis: ENABLED (v0.7.0+)")
+        print(f"   Analyzing if/else, try/except, match/case branches\n")
 
     try:
         agent = TestGenerationAgent(**agent_params)
