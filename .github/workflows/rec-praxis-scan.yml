@@ -240,7 +240,7 @@ jobs:
           echo "Running code review on examples/"
           rec-praxis-review examples/*.py \
             --severity=MEDIUM \
-            --json > dogfood-code-review.json
+            --json > dogfood-code-review-examples.json
         continue-on-error: true
 
       - name: Security Audit Examples
@@ -248,10 +248,10 @@ jobs:
           echo "Running security audit on examples/"
           rec-praxis-audit examples/*.py \
             --fail-on=HIGH \
-            --json > dogfood-security-audit.json
+            --json > dogfood-security-audit-examples.json
         continue-on-error: true
 
-      - name: Dependency Scan Examples
+      - name: Dependency Scan
         run: |
           echo "Running dependency scan"
           if [ -f "requirements.txt" ]; then
@@ -268,26 +268,106 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dogfood-results
+          name: dogfood-results-examples
           path: |
             dogfood-*.json
 
-      - name: Display dogfooding summary
+      - name: Display examples dogfooding summary
         if: always()
         run: |
-          echo "=== Dogfooding Summary ==="
+          echo "=== Examples Dogfooding Summary ==="
           echo ""
           echo "Code Review Results:"
-          if [ -f dogfood-code-review.json ]; then
-            python -c "import json; data=json.load(open('dogfood-code-review.json')); print(f'  Total findings: {data.get(\"total_findings\", 0)}'); print(f'  Blocking: {data.get(\"blocking_findings\", 0)}')"
+          if [ -f dogfood-code-review-examples.json ]; then
+            python -c "import json; data=json.load(open('dogfood-code-review-examples.json')); print(f'  Total findings: {data.get(\"total_findings\", 0)}'); print(f'  Blocking: {data.get(\"blocking_findings\", 0)}')"
           fi
           echo ""
           echo "Security Audit Results:"
-          if [ -f dogfood-security-audit.json ]; then
-            python -c "import json; data=json.load(open('dogfood-security-audit.json')); print(f'  Total findings: {data.get(\"total_findings\", 0)}'); print(f'  Critical: {data.get(\"blocking_findings\", 0)}')"
+          if [ -f dogfood-security-audit-examples.json ]; then
+            python -c "import json; data=json.load(open('dogfood-security-audit-examples.json')); print(f'  Total findings: {data.get(\"total_findings\", 0)}'); print(f'  Critical: {data.get(\"blocking_findings\", 0)}')"
           fi
           echo ""
           echo "Dependency Scan Results:"
           if [ -f dogfood-dependency-scan.json ]; then
             python -c "import json; data=json.load(open('dogfood-dependency-scan.json')); print(f'  CVEs: {data.get(\"cve_count\", 0)}'); print(f'  Secrets: {data.get(\"secret_count\", 0)}')"
+          fi
+
+  dogfood-production:
+    name: Dogfood on Production Code
+    runs-on: ubuntu-latest
+    # Scan production rec_praxis_rlm code to validate tool quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install rec-praxis-rlm from source
+        run: |
+          pip install -e .[all]
+
+      - name: Code Review Production Code
+        run: |
+          echo "Running code review on production code"
+          rec-praxis-review rec_praxis_rlm/**/*.py \
+            --severity=MEDIUM \
+            --format=json > dogfood-production-review.json
+        continue-on-error: true
+
+      - name: Code Review Production Code (TOON format)
+        run: |
+          echo "Running code review with TOON format"
+          rec-praxis-review rec_praxis_rlm/**/*.py \
+            --severity=MEDIUM \
+            --format=toon > dogfood-production-review-toon.txt
+        continue-on-error: true
+
+      - name: Security Audit Production Code
+        run: |
+          echo "Running security audit on production code"
+          rec-praxis-audit rec_praxis_rlm/**/*.py \
+            --fail-on=HIGH \
+            --format=json > dogfood-production-audit.json
+        continue-on-error: true
+
+      - name: Upload production dogfooding results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dogfood-results-production
+          path: |
+            dogfood-production-*.json
+            dogfood-production-*.txt
+
+      - name: Display production dogfooding summary
+        if: always()
+        run: |
+          echo "=== Production Code Dogfooding Summary ==="
+          echo ""
+          echo "Code Review Results (JSON):"
+          if [ -f dogfood-production-review.json ]; then
+            python -c "import json; data=json.load(open('dogfood-production-review.json')); print(f'  Total findings: {data.get(\"total_findings\", 0)}'); print(f'  Blocking: {data.get(\"blocking_findings\", 0)}')"
+          fi
+          echo ""
+          echo "Code Review Results (TOON format - token efficient):"
+          if [ -f dogfood-production-review-toon.txt ]; then
+            wc -c dogfood-production-review-toon.txt | awk '{print "  TOON output size: " $1 " bytes"}'
+            wc -c dogfood-production-review.json | awk '{print "  JSON output size: " $1 " bytes"}'
+            python -c "
+import os
+toon_size = os.path.getsize('dogfood-production-review-toon.txt')
+json_size = os.path.getsize('dogfood-production-review.json')
+if json_size > 0:
+    reduction = 100 * (1 - toon_size / json_size)
+    print(f'  Token reduction: {reduction:.1f}%')
+"
+          fi
+          echo ""
+          echo "Security Audit Results:"
+          if [ -f dogfood-production-audit.json ]; then
+            python -c "import json; data=json.load(open('dogfood-production-audit.json')); print(f'  Total findings: {data.get(\"total_findings\", 0)}'); print(f'  Critical: {data.get(\"blocking_findings\", 0)}')"
           fi
