@@ -142,6 +142,13 @@ class ProceduralMemory:
         # Store fact_store reference for semantic memory integration
         self.fact_store = fact_store
 
+        # Corruption statistics (tracked during load)
+        self.corruption_stats = {
+            "checksum_failures": 0,
+            "parse_errors": 0,
+            "total_lines_scanned": 0,
+        }
+
         # Load existing experiences if storage file exists
         if config.storage_path != ":memory:" and os.path.exists(config.storage_path):
             self._load_experiences()
@@ -203,6 +210,8 @@ class ProceduralMemory:
                 if not line:
                     continue
 
+                self.corruption_stats["total_lines_scanned"] += 1
+
                 try:
                     # For v2.0+, lines have format: checksum|json_data
                     if file_version >= "2.0" and "|" in line:
@@ -211,6 +220,7 @@ class ProceduralMemory:
                         # Validate checksum
                         computed_checksum = hashlib.sha256(json_data.encode()).hexdigest()
                         if computed_checksum != checksum:
+                            self.corruption_stats["checksum_failures"] += 1
                             logger.error(
                                 f"Checksum mismatch on line {line_num}: "
                                 f"expected {checksum}, got {computed_checksum}. "
@@ -226,9 +236,25 @@ class ProceduralMemory:
                     exp = Experience(**obj)
                     self.experiences.append(exp)
                 except Exception as e:
+                    self.corruption_stats["parse_errors"] += 1
                     logger.warning(
                         f"Skipping corrupted line {line_num} in {self.config.storage_path}: {e}"
                     )
+
+            # Emit corruption statistics
+            if self.corruption_stats["checksum_failures"] > 0 or self.corruption_stats["parse_errors"] > 0:
+                emit_event(
+                    "memory.corruption_detected",
+                    {
+                        "checksum_failures": self.corruption_stats["checksum_failures"],
+                        "parse_errors": self.corruption_stats["parse_errors"],
+                        "total_lines_scanned": self.corruption_stats["total_lines_scanned"],
+                        "corruption_rate": (
+                            (self.corruption_stats["checksum_failures"] + self.corruption_stats["parse_errors"])
+                            / max(self.corruption_stats["total_lines_scanned"], 1)
+                        ),
+                    },
+                )
         except FileNotFoundError:
             # File doesn't exist yet - that's okay
             pass
@@ -701,6 +727,14 @@ class ProceduralMemory:
             Number of experiences
         """
         return len(self.experiences)
+
+    def get_corruption_stats(self) -> dict[str, int]:
+        """Get corruption statistics from last load operation.
+
+        Returns:
+            Dictionary with checksum_failures, parse_errors, and total_lines_scanned
+        """
+        return self.corruption_stats.copy()
 
     def compact(self, keep_recent_n: Optional[int] = None) -> int:
         """Compact memory by removing old experiences.
