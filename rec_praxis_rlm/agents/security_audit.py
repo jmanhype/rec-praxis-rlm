@@ -111,6 +111,9 @@ class SecurityAuditAgent:
                 lines.append("")
         else:
             lines.append("✅ No security issues found!\n")
+            lines.append("💡 Tip: Template-based detection found no issues.")
+            lines.append("   For deeper analysis (hardcoded secrets, SQL injection, etc.):")
+            lines.append("   Try: rec-praxis-audit --use-llm <files>\n")
 
         lines.append("=" * 70)
         lines.append(f"\nSummary: {report.summary}\n")

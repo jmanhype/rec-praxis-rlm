@@ -365,7 +365,11 @@ def cli_code_review() -> int:
                 print(f"   Issue: {f.description}")
                 print(f"   Fix: {f.remediation}\n")
         else:
-            print("No issues found")
+            print("✅ No issues found")
+            print("\n💡 Tip: Template-based detection found no issues.")
+            print("   For deeper analysis (hardcoded secrets, SQL injection, etc.):")
+            print("   Try: rec-praxis-review --use-llm <files>")
+            print("   Or: rec-praxis-audit --use-llm <files>")
 
     # Log metrics to MLflow if enabled
     if args.mlflow_experiment:
