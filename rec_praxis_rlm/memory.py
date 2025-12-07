@@ -567,6 +567,11 @@ class ProceduralMemory:
             except Exception as e:
                 logger.warning(f"Failed to compute embedding: {e}")
 
+        # CRITICAL: Persist to storage FIRST to prevent FAISS index desync
+        # If storage fails, we don't want to update FAISS index
+        self._append_experience(experience)
+
+        # Storage succeeded - now safe to update in-memory structures
         # Add to in-memory list
         self.experiences.append(experience)
 
@@ -597,9 +602,6 @@ class ProceduralMemory:
                 if norm > 0:
                     embedding_normalized = embedding_np / norm
                     self._faiss_index.add(embedding_normalized)
-
-        # Persist to storage
-        self._append_experience(experience)
 
         # Emit telemetry
         emit_event(
