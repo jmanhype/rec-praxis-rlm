@@ -900,6 +900,8 @@ def cli_generate_tests() -> int:
                        help="Analyze branch coverage (if/else, try/except) in addition to line coverage (v0.7.0+, default: True)")
     parser.add_argument("--no-analyze-branches", dest="analyze_branches", action="store_false",
                        help="Disable branch coverage analysis (v0.7.0+)")
+    parser.add_argument("--use-hypothesis", action="store_true",
+                       help="Generate Hypothesis property-based tests with @given decorator (v0.8.0+)")
     args = parser.parse_args()
 
     # Lazy import
@@ -927,6 +929,7 @@ def cli_generate_tests() -> int:
         "coverage_data_file": args.coverage_file,
         "test_dir": args.test_dir,
         "analyze_branches": args.analyze_branches,  # v0.7.0: Branch coverage analysis
+        "use_hypothesis": args.use_hypothesis,  # v0.8.0: Hypothesis property-based testing
     }
 
     # Add DSPy parameters if requested
@@ -940,6 +943,11 @@ def cli_generate_tests() -> int:
     if args.analyze_branches:
         print(f"📊 Branch coverage analysis: ENABLED (v0.7.0+)")
         print(f"   Analyzing if/else, try/except, match/case branches\n")
+
+    # v0.8.0: Display Hypothesis mode
+    if args.use_hypothesis:
+        print(f"🔬 Hypothesis property-based testing: ENABLED (v0.8.0+)")
+        print(f"   Generating tests with @given decorator and strategies\n")
 
     try:
         agent = TestGenerationAgent(**agent_params)

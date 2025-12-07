@@ -54,6 +54,7 @@ if dspy is not None:
         function_source: str = dspy.InputField(desc="Source code of the function including signature and docstring")
         class_name: Optional[str] = dspy.InputField(desc="Class name if function is a method (None otherwise)", default=None)
         similar_test_patterns: str = dspy.InputField(desc="Similar successful test patterns from memory", default="")
+        use_hypothesis: bool = dspy.InputField(desc="Whether to generate Hypothesis property-based tests with @given decorator", default=False)
 
         test_code: str = dspy.OutputField(desc="Complete pytest test code with imports, test functions, and assertions")
         test_reasoning: str = dspy.OutputField(desc="Explanation of test strategy and coverage approach")
@@ -177,7 +178,8 @@ class TestGenerationAgent:
         test_dir: str = "tests",
         lm_model: Optional[str] = None,
         use_dspy: bool = False,
-        analyze_branches: bool = True  # v0.7.0: Enable branch coverage analysis
+        analyze_branches: bool = True,  # v0.7.0: Enable branch coverage analysis
+        use_hypothesis: bool = False  # v0.8.0: Enable Hypothesis property-based testing
     ):
         """Initialize test generation agent.
 
@@ -190,12 +192,14 @@ class TestGenerationAgent:
                      If None, uses template-based generation
             use_dspy: Whether to use DSPy for intelligent test generation (requires lm_model)
             analyze_branches: Whether to analyze branch coverage (v0.7.0+)
+            use_hypothesis: Whether to generate Hypothesis property-based tests (v0.8.0+)
         """
         self.memory_path = memory_path
         self.coverage_data_file = Path(coverage_data_file)
         self.test_dir = Path(test_dir)
         self.use_dspy = use_dspy and lm_model is not None
         self.analyze_branches = analyze_branches
+        self.use_hypothesis = use_hypothesis
 
         self.memory = ProceduralMemory(
             config=MemoryConfig(
@@ -806,11 +810,13 @@ def test_{region.function_name}_basic():
 
         try:
             # Call DSPy test generator
+            # v0.8.0: Include use_hypothesis flag
             result = self.test_generator(
                 function_name=region.function_name,
                 function_source=function_source,
                 class_name=region.class_name,
-                similar_test_patterns=similar_patterns_text
+                similar_test_patterns=similar_patterns_text,
+                use_hypothesis=self.use_hypothesis
             )
 
             # Extract generated test code
