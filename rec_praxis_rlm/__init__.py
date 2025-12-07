@@ -35,6 +35,7 @@ from rec_praxis_rlm.privacy import (
     classify_privacy_level,
     redact_secrets,
 )
+from rec_praxis_rlm.concepts import ConceptTagger
 
 __all__ = [
     # Version
@@ -75,4 +76,6 @@ __all__ = [
     "RedactionPattern",
     "classify_privacy_level",
     "redact_secrets",
+    # Concepts
+    "ConceptTagger",
 ]

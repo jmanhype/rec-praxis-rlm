@@ -99,6 +99,10 @@ class Experience(BaseModel):
         default="public",
         description="Privacy classification: public, private, or pii",
     )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Semantic tags extracted from experience (e.g., 'database', 'api', 'auth')",
+    )
 
 
 class ProceduralMemory:
@@ -162,6 +166,14 @@ class ProceduralMemory:
                 self.privacy_redactor = None
         else:
             self.privacy_redactor = None
+
+        # Initialize concept tagger for semantic tag extraction
+        try:
+            from rec_praxis_rlm.concepts import ConceptTagger
+            self.concept_tagger = ConceptTagger()
+        except ImportError:
+            logger.warning("Concepts module not available, disabling tag extraction")
+            self.concept_tagger = None
 
         # Corruption statistics (tracked during load)
         self.corruption_stats = {
@@ -587,6 +599,14 @@ class ProceduralMemory:
                 logger.debug(f"Redacted experience, privacy_level={experience.privacy_level}")
             except Exception as e:
                 logger.warning(f"Privacy redaction failed: {e}")
+
+        # Auto-extract concept tags
+        if self.concept_tagger:
+            try:
+                experience = self.concept_tagger.tag_experience(experience)
+                logger.debug(f"Tagged experience with {len(experience.tags)} tags: {experience.tags}")
+            except Exception as e:
+                logger.warning(f"Concept tagging failed: {e}")
 
         # Compute embedding if missing and provider available
         if experience.embedding is None and self.embedding_provider:
