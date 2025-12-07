@@ -29,8 +29,8 @@ def cli_code_review() -> int:
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
     parser.add_argument("--format", default="human",
-                       choices=["human", "json", "toon"],
-                       help="Output format (default: human, toon=40%% token reduction)")
+                       choices=["human", "json", "toon", "sarif"],
+                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
@@ -44,8 +44,8 @@ def cli_code_review() -> int:
         from rec_praxis_rlm.agents import CodeReviewAgent
         from rec_praxis_rlm.types import Severity
     except ImportError as e:
-        print(f"Error: Failed to import CodeReviewAgent: {e}")
-        print("Install rec-praxis-rlm[all] and ensure package is installed correctly")
+        from rec_praxis_rlm.errors import format_import_error
+        print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
 
     # Initialize agent with persistent memory
@@ -85,6 +85,9 @@ def cli_code_review() -> int:
     elif args.format == "toon":
         from rec_praxis_rlm.formatters import format_code_review_as_toon
         print(format_code_review_as_toon(len(all_findings), len(blocking_findings), all_findings))
+    elif args.format == "sarif":
+        from rec_praxis_rlm.formatters import format_findings_as_sarif
+        print(format_findings_as_sarif(all_findings, tool_name="rec-praxis-review"))
     else:  # human format
         if all_findings:
             print(f"\n🔍 Code Review Results: {len(all_findings)} issue(s) found\n")
@@ -114,8 +117,8 @@ def cli_security_audit() -> int:
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
     parser.add_argument("--format", default="human",
-                       choices=["human", "json", "toon"],
-                       help="Output format (default: human, toon=40%% token reduction)")
+                       choices=["human", "json", "toon", "sarif"],
+                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
@@ -129,8 +132,8 @@ def cli_security_audit() -> int:
         from rec_praxis_rlm.agents import SecurityAuditAgent
         from rec_praxis_rlm.types import Severity
     except ImportError as e:
-        print(f"Error: Failed to import SecurityAuditAgent: {e}")
-        print("Install rec-praxis-rlm[all] and ensure package is installed correctly")
+        from rec_praxis_rlm.errors import format_import_error
+        print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
 
     # Initialize agent
@@ -174,6 +177,9 @@ def cli_security_audit() -> int:
         print(f"\nSummary: {report.summary}\n")
         print("Findings:")
         print(format_findings_as_toon(report.findings))
+    elif args.format == "sarif":
+        from rec_praxis_rlm.formatters import format_findings_as_sarif
+        print(format_findings_as_sarif(report.findings, tool_name="rec-praxis-audit"))
     else:  # human format
         print(agent.format_report(report))
 
@@ -197,8 +203,8 @@ def cli_dependency_scan() -> int:
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
     parser.add_argument("--format", default="human",
-                       choices=["human", "json", "toon"],
-                       help="Output format (default: human, toon=40%% token reduction)")
+                       choices=["human", "json", "toon", "sarif"],
+                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
@@ -212,8 +218,8 @@ def cli_dependency_scan() -> int:
         from rec_praxis_rlm.agents import DependencyScanAgent
         from rec_praxis_rlm.types import Severity
     except ImportError as e:
-        print(f"Error: Failed to import DependencyScanAgent: {e}")
-        print("Install rec-praxis-rlm[all] and ensure package is installed correctly")
+        from rec_praxis_rlm.errors import format_import_error
+        print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
 
     # Initialize agent
@@ -276,6 +282,11 @@ def cli_dependency_scan() -> int:
             len(all_findings), len(cve_findings), len(secret_findings),
             cve_findings, secret_findings
         ))
+    elif args.format == "sarif":
+        from rec_praxis_rlm.formatters import format_cve_findings_as_sarif
+        # For dependency scans, we only output CVE findings in SARIF format
+        # Secret findings require file locations which we have but CVE is more important for GitHub Security
+        print(format_cve_findings_as_sarif(cve_findings, tool_name="rec-praxis-deps"))
     else:  # human format
         print(report)
 

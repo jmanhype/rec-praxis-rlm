@@ -77,6 +77,114 @@ class MemoryConfig(BaseModel):
             raise ValueError(f"env_weight + goal_weight must sum to 1.0, got {weight_sum:.3f}")
         return self
 
+    @classmethod
+    def for_code_review(cls, storage_path: str = "./memory_code_review.jsonl") -> "MemoryConfig":
+        """Create configuration optimized for code review tasks.
+
+        Settings:
+        - Higher similarity threshold (0.7) for precise matches
+        - Requires successful experiences only
+        - Prioritizes goal similarity (code quality patterns)
+        - Top 4 most relevant experiences
+
+        Args:
+            storage_path: Path to store code review memories
+
+        Returns:
+            MemoryConfig instance optimized for code review
+        """
+        return cls(
+            storage_path=storage_path,
+            top_k=4,
+            similarity_threshold=0.7,
+            env_weight=0.3,
+            goal_weight=0.7,
+            require_success=True,
+            embedding_model="sentence-transformers/all-MiniLM-L6-v2",
+            result_size_limit=30000,
+        )
+
+    @classmethod
+    def for_security_audit(cls, storage_path: str = "./memory_security.jsonl") -> "MemoryConfig":
+        """Create configuration optimized for security auditing.
+
+        Settings:
+        - Lower similarity threshold (0.4) to catch diverse vulnerabilities
+        - Includes failed experiences (learn from past false positives)
+        - Balanced env/goal weights
+        - Top 8 experiences for broader context
+
+        Args:
+            storage_path: Path to store security audit memories
+
+        Returns:
+            MemoryConfig instance optimized for security auditing
+        """
+        return cls(
+            storage_path=storage_path,
+            top_k=8,
+            similarity_threshold=0.4,
+            env_weight=0.5,
+            goal_weight=0.5,
+            require_success=False,  # Learn from false positives
+            embedding_model="sentence-transformers/all-MiniLM-L6-v2",
+            result_size_limit=50000,
+        )
+
+    @classmethod
+    def for_web_scraping(cls, storage_path: str = "./memory_scraping.jsonl") -> "MemoryConfig":
+        """Create configuration optimized for web scraping tasks.
+
+        Settings:
+        - Medium similarity threshold (0.5)
+        - Prioritizes environmental similarity (site structure)
+        - Requires successful experiences
+        - Top 6 experiences
+
+        Args:
+            storage_path: Path to store web scraping memories
+
+        Returns:
+            MemoryConfig instance optimized for web scraping
+        """
+        return cls(
+            storage_path=storage_path,
+            top_k=6,
+            similarity_threshold=0.5,
+            env_weight=0.7,
+            goal_weight=0.3,
+            require_success=True,
+            embedding_model="sentence-transformers/all-MiniLM-L6-v2",
+            result_size_limit=100000,  # Web pages can be large
+        )
+
+    @classmethod
+    def for_testing(cls, storage_path: str = "./memory_testing.jsonl") -> "MemoryConfig":
+        """Create configuration optimized for test generation tasks.
+
+        Settings:
+        - High similarity threshold (0.75) for precise test patterns
+        - Requires successful experiences
+        - Heavily prioritizes goal similarity (test coverage patterns)
+        - Top 5 experiences
+
+        Args:
+            storage_path: Path to store testing memories
+
+        Returns:
+            MemoryConfig instance optimized for test generation
+        """
+        return cls(
+            storage_path=storage_path,
+            top_k=5,
+            similarity_threshold=0.75,
+            env_weight=0.2,
+            goal_weight=0.8,
+            require_success=True,
+            embedding_model="sentence-transformers/all-MiniLM-L6-v2",
+            result_size_limit=40000,
+        )
+
 
 class ReplConfig(BaseModel):
     """Configuration for RLMContext.

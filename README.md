@@ -337,6 +337,33 @@ config = MemoryConfig(
 )
 ```
 
+**Configuration Presets** (v0.4.3+):
+
+Simplify configuration with task-optimized presets:
+
+```python
+# Code review preset (precise, successful experiences only)
+config = MemoryConfig.for_code_review()
+
+# Security audit preset (broad, includes false positives for learning)
+config = MemoryConfig.for_security_audit()
+
+# Web scraping preset (prioritizes site structure)
+config = MemoryConfig.for_web_scraping()
+
+# Test generation preset (high precision for test patterns)
+config = MemoryConfig.for_testing()
+```
+
+**Preset Comparison**:
+
+| Preset | top_k | similarity_threshold | env_weight | goal_weight | require_success | Best For |
+|--------|-------|---------------------|------------|-------------|-----------------|----------|
+| `for_code_review()` | 4 | 0.7 (high) | 0.3 | 0.7 | True | Precise code quality patterns |
+| `for_security_audit()` | 8 | 0.4 (low) | 0.5 | 0.5 | False | Diverse vulnerability detection |
+| `for_web_scraping()` | 6 | 0.5 (medium) | 0.7 | 0.3 | True | Site structure similarity |
+| `for_testing()` | 5 | 0.75 (very high) | 0.2 | 0.8 | True | Test coverage patterns |
+
 ### REPL Configuration
 
 ```python
@@ -571,17 +598,21 @@ rec-praxis-review src/**/*.py --severity=HIGH --format=json
 # Code review (TOON format for 40% token reduction)
 rec-praxis-review src/**/*.py --severity=HIGH --format=toon
 
+# Code review (SARIF for GitHub Security tab)
+rec-praxis-review src/**/*.py --format=sarif > code-review.sarif
+
 # Security audit
-rec-praxis-audit app.py --fail-on=CRITICAL --format=toon
+rec-praxis-audit app.py --fail-on=CRITICAL --format=sarif > security-audit.sarif
 
 # Dependency & secret scan
-rec-praxis-deps --requirements=requirements.txt --files src/config.py --format=toon
+rec-praxis-deps --requirements=requirements.txt --files src/config.py --format=sarif > deps.sarif
 ```
 
 **Output Formats**:
 - **human** (default): Colorful, emoji-rich output for terminal viewing
 - **json**: Structured JSON for IDE integration and programmatic parsing
 - **toon**: Token-efficient format providing ~40% token reduction (experimental)
+- **sarif**: SARIF v2.1.0 format for GitHub Security tab integration (v0.4.3+)
 
 **Features**:
 - Configurable severity thresholds
