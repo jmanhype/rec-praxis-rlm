@@ -902,11 +902,15 @@ def cli_generate_tests() -> int:
                        help="Disable branch coverage analysis (v0.7.0+)")
     parser.add_argument("--use-hypothesis", action="store_true",
                        help="Generate Hypothesis property-based tests with @given decorator (v0.8.0+)")
+    parser.add_argument("--language", type=str, default="python",
+                       choices=["python", "javascript", "typescript", "go", "rust"],
+                       help="Target programming language for test generation (v0.9.0+, default: python)")
     args = parser.parse_args()
 
     # Lazy import
     try:
         from rec_praxis_rlm.agents import TestGenerationAgent
+        from rec_praxis_rlm.agents.test_generation import Language
     except ImportError as e:
         from rec_praxis_rlm.errors import format_import_error
         print(format_import_error(e, "agents"), file=sys.stderr)
@@ -930,6 +934,7 @@ def cli_generate_tests() -> int:
         "test_dir": args.test_dir,
         "analyze_branches": args.analyze_branches,  # v0.7.0: Branch coverage analysis
         "use_hypothesis": args.use_hypothesis,  # v0.8.0: Hypothesis property-based testing
+        "target_language": Language[args.language.upper()],  # v0.9.0: Multi-language support
     }
 
     # Add DSPy parameters if requested
@@ -948,6 +953,12 @@ def cli_generate_tests() -> int:
     if args.use_hypothesis:
         print(f"🔬 Hypothesis property-based testing: ENABLED (v0.8.0+)")
         print(f"   Generating tests with @given decorator and strategies\n")
+
+    # v0.9.0: Display multi-language mode
+    if args.language != "python":
+        print(f"🌍 Multi-language support: ENABLED (v0.9.0+)")
+        print(f"   Target language: {args.language.upper()}")
+        print(f"   Generating tests in {args.language} syntax\n")
 
     try:
         agent = TestGenerationAgent(**agent_params)

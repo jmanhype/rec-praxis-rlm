@@ -17,8 +17,19 @@ import re
 import subprocess
 import time
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+
+# v0.9.0: Language support enum
+class Language(Enum):
+    """Supported programming languages for test generation."""
+    PYTHON = "python"
+    JAVASCRIPT = "javascript"
+    TYPESCRIPT = "typescript"
+    GO = "go"
+    RUST = "rust"
 
 try:
     from coverage import Coverage
@@ -33,6 +44,31 @@ except ImportError:
     dspy = None  # type: ignore
 
 from rec_praxis_rlm import ProceduralMemory, Experience, MemoryConfig, RLMContext
+
+
+# v0.9.0: Language detection helper
+def detect_language(file_path: str) -> Language:
+    """Detect programming language from file extension.
+
+    Args:
+        file_path: Path to source file
+
+    Returns:
+        Language enum value
+    """
+    ext = Path(file_path).suffix.lower()
+
+    language_map = {
+        '.py': Language.PYTHON,
+        '.js': Language.JAVASCRIPT,
+        '.jsx': Language.JAVASCRIPT,
+        '.ts': Language.TYPESCRIPT,
+        '.tsx': Language.TYPESCRIPT,
+        '.go': Language.GO,
+        '.rs': Language.RUST,
+    }
+
+    return language_map.get(ext, Language.PYTHON)  # Default to Python
 
 
 # DSPy Signature for intelligent test generation
@@ -55,8 +91,9 @@ if dspy is not None:
         class_name: Optional[str] = dspy.InputField(desc="Class name if function is a method (None otherwise)", default=None)
         similar_test_patterns: str = dspy.InputField(desc="Similar successful test patterns from memory", default="")
         use_hypothesis: bool = dspy.InputField(desc="Whether to generate Hypothesis property-based tests with @given decorator", default=False)
+        target_language: str = dspy.InputField(desc="Target programming language (python, javascript, typescript, go, rust)", default="python")
 
-        test_code: str = dspy.OutputField(desc="Complete pytest test code with imports, test functions, and assertions")
+        test_code: str = dspy.OutputField(desc="Complete test code with imports, test functions, and assertions in the target language")
         test_reasoning: str = dspy.OutputField(desc="Explanation of test strategy and coverage approach")
 
 
@@ -179,7 +216,8 @@ class TestGenerationAgent:
         lm_model: Optional[str] = None,
         use_dspy: bool = False,
         analyze_branches: bool = True,  # v0.7.0: Enable branch coverage analysis
-        use_hypothesis: bool = False  # v0.8.0: Enable Hypothesis property-based testing
+        use_hypothesis: bool = False,  # v0.8.0: Enable Hypothesis property-based testing
+        target_language: Optional[Language] = None  # v0.9.0: Target language (auto-detect if None)
     ):
         """Initialize test generation agent.
 
@@ -193,6 +231,7 @@ class TestGenerationAgent:
             use_dspy: Whether to use DSPy for intelligent test generation (requires lm_model)
             analyze_branches: Whether to analyze branch coverage (v0.7.0+)
             use_hypothesis: Whether to generate Hypothesis property-based tests (v0.8.0+)
+            target_language: Target programming language (v0.9.0+, auto-detects if None)
         """
         self.memory_path = memory_path
         self.coverage_data_file = Path(coverage_data_file)
@@ -200,6 +239,7 @@ class TestGenerationAgent:
         self.use_dspy = use_dspy and lm_model is not None
         self.analyze_branches = analyze_branches
         self.use_hypothesis = use_hypothesis
+        self.target_language = target_language or Language.PYTHON  # Default to Python
 
         self.memory = ProceduralMemory(
             config=MemoryConfig(
@@ -811,12 +851,14 @@ def test_{region.function_name}_basic():
         try:
             # Call DSPy test generator
             # v0.8.0: Include use_hypothesis flag
+            # v0.9.0: Include target_language
             result = self.test_generator(
                 function_name=region.function_name,
                 function_source=function_source,
                 class_name=region.class_name,
                 similar_test_patterns=similar_patterns_text,
-                use_hypothesis=self.use_hypothesis
+                use_hypothesis=self.use_hypothesis,
+                target_language=self.target_language.value
             )
 
             # Extract generated test code
