@@ -76,6 +76,7 @@ markers = [
     "unit: Unit tests",
     "integration: Integration tests",
     "slow: Slow tests (>1s)",
+    "ragas: RAGAS evaluation tests (requires GROQ_API_KEY)",
 ]
 
 [tool.coverage.run]
