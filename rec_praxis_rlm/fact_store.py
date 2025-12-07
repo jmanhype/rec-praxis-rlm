@@ -477,7 +477,17 @@ class FactStore:
 
     def close(self):
         """Close database connection."""
-        self.conn.close()
+        if hasattr(self, 'conn') and self.conn is not None:
+            try:
+                self.conn.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            finally:
+                self.conn = None
+
+    def __del__(self):
+        """Destructor to ensure connection is closed."""
+        self.close()
 
     def __enter__(self):
         """Context manager entry."""
