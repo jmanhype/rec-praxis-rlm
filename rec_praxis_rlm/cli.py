@@ -9,7 +9,9 @@ This module provides CLI entry points for:
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from rec_praxis_rlm import __version__
@@ -35,6 +37,8 @@ def cli_code_review() -> int:
                        help="Output file path for HTML reports (default: code-review-report.html)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
+    parser.add_argument("--mlflow-experiment", type=str,
+                       help="MLflow experiment name for metrics tracking (optional)")
     args = parser.parse_args()
 
     # Handle legacy --json flag
@@ -50,10 +54,21 @@ def cli_code_review() -> int:
         print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
 
+    # Setup MLflow tracking if requested
+    if args.mlflow_experiment:
+        try:
+            from rec_praxis_rlm.telemetry import setup_mlflow_tracing
+            setup_mlflow_tracing(experiment_name=args.mlflow_experiment)
+        except ImportError:
+            print("Warning: MLflow not installed, metrics tracking disabled", file=sys.stderr)
+
     # Initialize agent with persistent memory
     memory_dir = Path(args.memory_dir)
     memory_dir.mkdir(exist_ok=True)
     agent = CodeReviewAgent(memory_path=str(memory_dir / "code_review_memory.jsonl"))
+
+    # Track scan start time for metrics
+    scan_start = time.time()
 
     # Read and review files
     all_findings = []
@@ -106,7 +121,25 @@ def cli_code_review() -> int:
                 print(f"   Issue: {f.description}")
                 print(f"   Fix: {f.remediation}\n")
         else:
-            print("✅ No issues found")
+            print("No issues found")
+
+    # Log metrics to MLflow if enabled
+    if args.mlflow_experiment:
+        try:
+            from rec_praxis_rlm.telemetry import log_security_scan_metrics
+            import mlflow
+
+            scan_duration = time.time() - scan_start
+
+            with mlflow.start_run(run_name=f"code_review_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"):
+                log_security_scan_metrics(
+                    findings=all_findings,
+                    scan_type="code_review",
+                    files_scanned=len(args.files),
+                    scan_duration_seconds=scan_duration
+                )
+        except Exception as e:
+            print(f"Warning: Failed to log metrics to MLflow: {e}", file=sys.stderr)
 
     return 1 if blocking_findings else 0
 
@@ -131,6 +164,8 @@ def cli_security_audit() -> int:
                        help="Output file path for HTML reports (default: security-audit-report.html)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
+    parser.add_argument("--mlflow-experiment", type=str,
+                       help="MLflow experiment name for metrics tracking (optional)")
     args = parser.parse_args()
 
     # Handle legacy --json flag
@@ -146,10 +181,21 @@ def cli_security_audit() -> int:
         print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
 
+    # Setup MLflow tracking if requested
+    if args.mlflow_experiment:
+        try:
+            from rec_praxis_rlm.telemetry import setup_mlflow_tracing
+            setup_mlflow_tracing(experiment_name=args.mlflow_experiment)
+        except ImportError:
+            print("Warning: MLflow not installed, metrics tracking disabled", file=sys.stderr)
+
     # Initialize agent
     memory_dir = Path(args.memory_dir)
     memory_dir.mkdir(exist_ok=True)
     agent = SecurityAuditAgent(memory_path=str(memory_dir / "security_audit_memory.jsonl"))
+
+    # Track scan start time for metrics
+    scan_start = time.time()
 
     # Read and audit files
     files_content = {}
@@ -199,6 +245,24 @@ def cli_security_audit() -> int:
     else:  # human format
         print(agent.format_report(report))
 
+    # Log metrics to MLflow if enabled
+    if args.mlflow_experiment:
+        try:
+            from rec_praxis_rlm.telemetry import log_security_scan_metrics
+            import mlflow
+
+            scan_duration = time.time() - scan_start
+
+            with mlflow.start_run(run_name=f"security_audit_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"):
+                log_security_scan_metrics(
+                    findings=report.findings,
+                    scan_type="security_audit",
+                    files_scanned=len(args.files),
+                    scan_duration_seconds=scan_duration
+                )
+        except Exception as e:
+            print(f"Warning: Failed to log metrics to MLflow: {e}", file=sys.stderr)
+
     return 1 if blocking_findings else 0
 
 
@@ -225,6 +289,8 @@ def cli_dependency_scan() -> int:
                        help="Output file path for HTML reports (default: dependency-scan-report.html)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
+    parser.add_argument("--mlflow-experiment", type=str,
+                       help="MLflow experiment name for metrics tracking (optional)")
     args = parser.parse_args()
 
     # Handle legacy --json flag
@@ -240,10 +306,21 @@ def cli_dependency_scan() -> int:
         print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
 
+    # Setup MLflow tracking if requested
+    if args.mlflow_experiment:
+        try:
+            from rec_praxis_rlm.telemetry import setup_mlflow_tracing
+            setup_mlflow_tracing(experiment_name=args.mlflow_experiment)
+        except ImportError:
+            print("Warning: MLflow not installed, metrics tracking disabled", file=sys.stderr)
+
     # Initialize agent
     memory_dir = Path(args.memory_dir)
     memory_dir.mkdir(exist_ok=True)
     agent = DependencyScanAgent(memory_path=str(memory_dir / "dependency_scan_memory.jsonl"))
+
+    # Track scan start time for metrics
+    scan_start = time.time()
 
     # Scan dependencies
     cve_findings = []
@@ -321,6 +398,24 @@ def cli_dependency_scan() -> int:
         return 1 if blocking_findings else 0
     else:  # human format
         print(report)
+
+    # Log metrics to MLflow if enabled
+    if args.mlflow_experiment:
+        try:
+            from rec_praxis_rlm.telemetry import log_security_scan_metrics
+            import mlflow
+
+            scan_duration = time.time() - scan_start
+
+            with mlflow.start_run(run_name=f"dependency_scan_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"):
+                log_security_scan_metrics(
+                    findings=all_findings,
+                    scan_type="dependency_scan",
+                    files_scanned=num_dependencies + len(files_content),
+                    scan_duration_seconds=scan_duration
+                )
+        except Exception as e:
+            print(f"Warning: Failed to log metrics to MLflow: {e}", file=sys.stderr)
 
     return 1 if blocking_findings else 0
 

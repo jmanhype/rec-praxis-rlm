@@ -675,6 +675,100 @@ rec-praxis-deps --requirements=requirements.txt --files src/*.py --format=html -
 - Present findings in management reviews
 - Embed in documentation or wikis
 
+### MLflow Metrics Tracking
+
+Track security scan metrics over time with MLflow integration (v0.4.4+):
+
+**Features**:
+- Automatic metrics logging for all scan types
+- Trend analysis and security posture dashboards
+- MTTR (Mean Time To Remediate) tracking
+- False positive rate monitoring
+- LLM cost tracking (tokens, USD estimates)
+- A/B testing for different prompt variants
+
+**Example Usage**:
+
+```bash
+# Code review with MLflow tracking
+rec-praxis-review src/**/*.py --mlflow-experiment=code-quality
+
+# Security audit with metrics
+rec-praxis-audit app.py --mlflow-experiment=security-posture
+
+# Dependency scan with tracking
+rec-praxis-deps --requirements=requirements.txt --mlflow-experiment=supply-chain
+```
+
+**View MLflow Dashboard**:
+
+```bash
+# Start MLflow UI
+mlflow ui --port 5000
+
+# Navigate to http://localhost:5000 to view:
+# - Scan duration trends
+# - Findings by severity over time
+# - OWASP category distribution
+# - Cost per scan (token usage)
+# - Files scanned per second (performance)
+```
+
+**Metrics Logged**:
+- `<scan_type>.total_findings`: Total issues detected
+- `<scan_type>.critical_count`: Critical severity count
+- `<scan_type>.high_count`: High severity count
+- `<scan_type>.medium_count`: Medium severity count
+- `<scan_type>.low_count`: Low severity count
+- `<scan_type>.files_scanned`: Number of files analyzed
+- `<scan_type>.scan_duration_seconds`: Total scan time
+- `<scan_type>.llm_tokens_used`: LLM tokens consumed
+- `<scan_type>.llm_cost_usd`: Estimated cost in USD
+- `<scan_type>.findings_per_file`: Derived metric
+- `<scan_type>.files_per_second`: Performance metric
+
+**Programmatic Usage**:
+
+```python
+from rec_praxis_rlm.telemetry import (
+    setup_mlflow_tracing,
+    log_security_scan_metrics,
+    log_remediation_metrics
+)
+import mlflow
+
+# Setup experiment
+setup_mlflow_tracing(experiment_name="security-scans")
+
+# Run scan and log metrics
+with mlflow.start_run(run_name="scan_2025_01_15"):
+    # Your scan logic here...
+    findings = agent.review_code(files)
+
+    log_security_scan_metrics(
+        findings=findings,
+        scan_type="code_review",
+        files_scanned=len(files),
+        scan_duration_seconds=duration
+    )
+
+# Track remediation (MTTR)
+log_remediation_metrics(
+    issue_id="SEC-123",
+    severity="CRITICAL",
+    time_to_fix_hours=2.5,
+    was_reintroduced=False
+)
+```
+
+**Use Cases**:
+- Monitor security posture over sprints
+- Track mean time to remediation (MTTR)
+- Compare scan performance across code versions
+- Optimize LLM costs with token tracking
+- A/B test different review prompts
+- Generate compliance reports
+
 ### VS Code Extension
 
 Install the "rec-praxis-rlm Code Intelligence" extension from the VS Code Marketplace, or build from source:
