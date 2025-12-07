@@ -121,7 +121,18 @@ class FactStore:
 
         Returns:
             List of extracted Fact objects
+
+        Raises:
+            TypeError: If text is not a string
         """
+        # Type validation
+        if not isinstance(text, str):
+            raise TypeError(f"text must be str, got {type(text).__name__}")
+
+        # Early return for empty text
+        if not text:
+            return []
+
         facts = []
 
         if use_heuristics:
