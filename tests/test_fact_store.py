@@ -230,5 +230,91 @@ def test_temporal_ordering():
     store.close()
 
 
+def test_extract_with_heuristics_disabled():
+    """Test fact extraction with heuristics disabled."""
+    store = FactStore(storage_path=":memory:")
+
+    # Extract with heuristics disabled (should return empty list)
+    text = "FAISS = Facebook AI Similarity Search. It provides 10x speedup."
+    facts = store.extract_facts(text, source_id="no_heuristics", use_heuristics=False)
+
+    assert len(facts) == 0
+    assert store.count_facts() == 0
+
+    store.close()
+
+
+def test_file_storage_path():
+    """Test FactStore with file-based storage path (creates parent directories)."""
+    import tempfile
+    import os
+
+    # Create temporary directory
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Use nested path to test parent directory creation
+        db_path = os.path.join(tmpdir, "nested", "facts.db")
+
+        store = FactStore(storage_path=db_path)
+        store.extract_facts("FAISS = Facebook AI Similarity Search", source_id="file_test")
+
+        assert store.count_facts() >= 1
+        assert os.path.exists(db_path)
+
+        store.close()
+
+
+def test_speedup_latency_metric_extraction():
+    """Test extraction of speedup and latency specific metrics."""
+    store = FactStore(storage_path=":memory:")
+
+    # Test speedup detection
+    text1 = "Achieved significant speedup with 10x improvement"
+    facts1 = store.extract_facts(text1, source_id="speedup_test")
+
+    speedup_facts = [f for f in facts1 if "speedup" in f.key.lower() or "speedup" in f.evidence.lower()]
+    assert len(speedup_facts) >= 1
+
+    # Test latency detection
+    text2 = "Reduced latency to 0.05s from 1.2s"
+    facts2 = store.extract_facts(text2, source_id="latency_test")
+
+    latency_facts = [f for f in facts2 if "latency" in f.key.lower() or "latency" in f.evidence.lower()]
+    assert len(latency_facts) >= 1
+
+    store.close()
+
+
+def test_kv_validation_filters():
+    """Test key-value extraction filters (long values, common words, 'and')."""
+    store = FactStore(storage_path=":memory:")
+
+    # Test 1: Too long value (should be skipped)
+    text_long = "description = " + ("a" * 150)  # 150 chars
+    facts_long = store.extract_facts(text_long, source_id="long_test")
+    long_val_facts = [f for f in facts_long if f.key == "description"]
+    assert len(long_val_facts) == 0  # Should be filtered out
+
+    # Test 2: Common word as key (should be skipped)
+    text_common = "for = something, and = another"
+    facts_common = store.extract_facts(text_common, source_id="common_test")
+    common_facts = [f for f in facts_common if f.key in ["for", "and"]]
+    assert len(common_facts) == 0  # Should be filtered out
+
+    # Test 3: Value contains "and" (should be skipped - incomplete match)
+    text_and = "setting = value and more"
+    facts_and = store.extract_facts(text_and, source_id="and_test")
+    and_facts = [f for f in facts_and if f.key == "setting" and "and" in f.value.lower()]
+    assert len(and_facts) == 0  # Should be filtered out
+
+    # Test 4: Valid key-value (should be extracted)
+    text_valid = "max_connections = 100"
+    facts_valid = store.extract_facts(text_valid, source_id="valid_test")
+    valid_facts = [f for f in facts_valid if f.key == "max_connections"]
+    assert len(valid_facts) == 1  # Should be extracted
+    assert "100" in valid_facts[0].value
+
+    store.close()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
