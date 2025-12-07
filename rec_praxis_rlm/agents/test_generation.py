@@ -138,7 +138,9 @@ class TestGenerationAgent:
         self,
         memory_path: str = ":memory:",
         coverage_data_file: str = ".coverage",
-        test_dir: str = "tests"
+        test_dir: str = "tests",
+        lm_model: Optional[str] = None,
+        use_dspy: bool = False
     ):
         """Initialize test generation agent.
 
@@ -147,10 +149,14 @@ class TestGenerationAgent:
                         Use ":memory:" for in-memory (testing only).
             coverage_data_file: Path to coverage.py data file (default: .coverage)
             test_dir: Directory where generated tests will be saved
+            lm_model: Language model for DSPy test generation (e.g., "groq/llama-3.3-70b-versatile")
+                     If None, uses template-based generation
+            use_dspy: Whether to use DSPy for intelligent test generation (requires lm_model)
         """
         self.memory_path = memory_path
         self.coverage_data_file = Path(coverage_data_file)
         self.test_dir = Path(test_dir)
+        self.use_dspy = use_dspy and lm_model is not None
 
         self.memory = ProceduralMemory(
             config=MemoryConfig(
@@ -167,6 +173,41 @@ class TestGenerationAgent:
                 "coverage package is required for test generation. "
                 "Install it with: pip install coverage pytest-cov"
             )
+
+        # Initialize DSPy if requested
+        self.test_generator = None
+        if self.use_dspy:
+            if dspy is None:
+                raise ImportError(
+                    "dspy package is required for LLM-based test generation. "
+                    "Install it with: pip install dspy-ai"
+                )
+
+            # Configure DSPy language model
+            try:
+                if lm_model.startswith("groq/"):
+                    import os
+                    api_key = os.getenv("GROQ_API_KEY")
+                    if not api_key:
+                        raise ValueError("GROQ_API_KEY environment variable required for Groq models")
+                    lm = dspy.GROQ(model=lm_model.replace("groq/", ""), api_key=api_key)
+                elif lm_model.startswith("openai/"):
+                    import os
+                    api_key = os.getenv("OPENAI_API_KEY")
+                    if not api_key:
+                        raise ValueError("OPENAI_API_KEY environment variable required for OpenAI models")
+                    lm = dspy.OpenAI(model=lm_model.replace("openai/", ""), api_key=api_key)
+                else:
+                    # Generic LiteLLM model
+                    lm = dspy.LM(model=lm_model)
+
+                dspy.configure(lm=lm)
+
+                # Initialize ChainOfThought with our signature
+                self.test_generator = dspy.ChainOfThought(GeneratePytestTest)
+
+            except Exception as e:
+                raise RuntimeError(f"Failed to initialize DSPy with model {lm_model}: {e}")
 
     def analyze_coverage(
         self,
@@ -400,6 +441,45 @@ class TestGenerationAgent:
         # For now, return empty list (would query self.memory in production)
         return relevant_experiences
 
+    def _extract_function_source(
+        self,
+        file_path: str,
+        function_name: str
+    ) -> Optional[str]:
+        """Extract full source code of a function from a file.
+
+        Args:
+            file_path: Path to source file
+            function_name: Name of function to extract
+
+        Returns:
+            Full function source code including signature and docstring, or None if not found
+        """
+        try:
+            with open(file_path, 'r') as f:
+                source = f.read()
+
+            tree = ast.parse(source, filename=file_path)
+
+            # Find the function node
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) and node.name == function_name:
+                    # Extract function source using ast.get_source_segment
+                    if hasattr(ast, 'get_source_segment'):
+                        return ast.get_source_segment(source, node)
+                    else:
+                        # Fallback for older Python versions
+                        lines = source.split('\n')
+                        if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
+                            start = node.lineno - 1
+                            end = node.end_lineno if node.end_lineno else start + 1
+                            return '\n'.join(lines[start:end])
+
+        except Exception:
+            pass
+
+        return None
+
     def _generate_test_code(
         self,
         region: UncoveredRegion,
@@ -416,12 +496,14 @@ class TestGenerationAgent:
         Returns:
             Generated test code as string, or None if generation failed
         """
-        # Simple template-based generation for MVP
-        # In production, this would use DSPy with LLM
-
         if not region.function_name:
             return None
 
+        # Use DSPy for intelligent test generation if available
+        if self.use_dspy and self.test_generator is not None:
+            return self._generate_test_with_dspy(region, similar_tests)
+
+        # Fallback to template-based generation
         # Extract module path from file path
         module_path = self._get_module_path(region.file_path)
 
@@ -439,6 +521,72 @@ def test_{region.function_name}_basic():
 '''
 
         return test_code
+
+    def _generate_test_with_dspy(
+        self,
+        region: UncoveredRegion,
+        similar_tests: List[Experience]
+    ) -> Optional[str]:
+        """Generate pytest test using DSPy LLM.
+
+        Args:
+            region: UncoveredRegion to generate test for
+            similar_tests: Similar test patterns from memory
+
+        Returns:
+            Generated test code with assertions, or None if generation failed
+        """
+        # Extract full function source
+        function_source = self._extract_function_source(
+            region.file_path,
+            region.function_name
+        )
+
+        if not function_source:
+            # Fallback to template if we can't extract function source
+            return None
+
+        # Format similar test patterns for context
+        similar_patterns_text = ""
+        if similar_tests:
+            similar_patterns_text = "Similar successful test patterns:\n"
+            for i, exp in enumerate(similar_tests[:3], 1):  # Top 3 most similar
+                similar_patterns_text += f"{i}. {exp.action}\n   Result: {exp.result}\n"
+
+        try:
+            # Call DSPy test generator
+            result = self.test_generator(
+                function_name=region.function_name,
+                function_source=function_source,
+                class_name=region.class_name,
+                similar_test_patterns=similar_patterns_text
+            )
+
+            # Extract generated test code
+            test_code = result.test_code.strip()
+
+            # Basic validation: check if test has assertions
+            if "assert" not in test_code.lower() and "pytest.raises" not in test_code.lower():
+                print(f"Warning: Generated test for {region.function_name} has no assertions, using template fallback")
+                return None
+
+            # Store the reasoning in memory for future reference
+            if self.memory_path != ":memory:":
+                exp = Experience(
+                    env_features=["pytest", "dspy_generation", region.function_name],
+                    goal=f"generate test with assertions for {region.function_name}",
+                    action=f"DSPy reasoning: {result.test_reasoning}",
+                    result=f"Generated test with assertions: {test_code[:200]}...",
+                    success=True,
+                    timestamp=time.time()
+                )
+                self.memory.store(exp)
+
+            return test_code
+
+        except Exception as e:
+            print(f"Error generating test with DSPy for {region.function_name}: {e}")
+            return None
 
     def _get_module_path(self, file_path: str) -> str:
         """Convert file path to Python module path.

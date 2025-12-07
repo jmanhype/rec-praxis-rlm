@@ -892,6 +892,10 @@ def cli_generate_tests() -> int:
     parser.add_argument("--format", default="human",
                        choices=["human", "json"],
                        help="Output format (default: human)")
+    parser.add_argument("--use-llm", action="store_true",
+                       help="Use DSPy LLM for intelligent test generation with assertions (v0.6.0+)")
+    parser.add_argument("--lm-model", default="groq/llama-3.3-70b-versatile",
+                       help="Language model for DSPy (default: groq/llama-3.3-70b-versatile)")
     args = parser.parse_args()
 
     # Lazy import
@@ -912,11 +916,30 @@ def cli_generate_tests() -> int:
     # Initialize agent
     memory_dir = Path(args.memory_dir)
     memory_dir.mkdir(exist_ok=True)
-    agent = TestGenerationAgent(
-        memory_path=str(memory_dir / "test_generation_memory.jsonl"),
-        coverage_data_file=args.coverage_file,
-        test_dir=args.test_dir
-    )
+
+    # Prepare agent initialization parameters
+    agent_params = {
+        "memory_path": str(memory_dir / "test_generation_memory.jsonl"),
+        "coverage_data_file": args.coverage_file,
+        "test_dir": args.test_dir,
+    }
+
+    # Add DSPy parameters if requested
+    if args.use_llm:
+        agent_params["use_dspy"] = True
+        agent_params["lm_model"] = args.lm_model
+        print(f"🤖 Using DSPy with model: {args.lm_model}")
+        print(f"   Tests will include assertions (not TODO stubs)\n")
+
+    try:
+        agent = TestGenerationAgent(**agent_params)
+    except (ImportError, ValueError, RuntimeError) as e:
+        print(f"Error initializing agent: {e}", file=sys.stderr)
+        if "dspy" in str(e).lower():
+            print("Install DSPy with: pip install dspy-ai", file=sys.stderr)
+        if "API_KEY" in str(e):
+            print(f"Set the required environment variable for {args.lm_model}", file=sys.stderr)
+        return 1
 
     print(f"🧪 Test Generation Agent v{__version__}")
     print(f"{'='*60}\n")
