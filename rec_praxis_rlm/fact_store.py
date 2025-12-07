@@ -129,8 +129,11 @@ class FactStore:
                 )
 
     def _init_schema(self):
-        """Create fact_store table and indexes."""
+        """Create fact_store table and indexes, enable WAL mode for better concurrency."""
         cursor = self.conn.cursor()
+
+        # Enable WAL mode for better concurrency (allows concurrent readers + 1 writer)
+        cursor.execute("PRAGMA journal_mode=WAL")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS fact_store (
