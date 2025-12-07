@@ -16,6 +16,14 @@ from rec_praxis_rlm.embeddings import SentenceTransformerEmbedding, EmbeddingPro
 from rec_praxis_rlm.exceptions import StorageError, EmbeddingError
 from rec_praxis_rlm.telemetry import emit_event
 
+# Optional FactStore import (for semantic memory integration)
+try:
+    from rec_praxis_rlm.fact_store import FactStore
+    FACTSTORE_AVAILABLE = True
+except ImportError:
+    FACTSTORE_AVAILABLE = False
+    FactStore = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 # Storage format version for backward compatibility
@@ -99,6 +107,7 @@ class ProceduralMemory:
         config: MemoryConfig = MemoryConfig(),
         use_faiss: bool = True,
         embedding_provider: Optional[EmbeddingProvider] = None,
+        fact_store: Optional["FactStore"] = None,
     ) -> None:
         """Initialize procedural memory.
 
@@ -107,6 +116,8 @@ class ProceduralMemory:
             use_faiss: If True and FAISS available, use FAISS index for fast retrieval
             embedding_provider: Optional pre-configured embedding provider for dependency injection.
                                If None, will create default provider from config.embedding_model
+            fact_store: Optional FactStore for semantic memory integration.
+                       If provided, facts will be auto-extracted from experiences.
         """
         self.config = config
         self.experiences: list[Experience] = []
@@ -126,6 +137,9 @@ class ProceduralMemory:
 
         # Initialize ThreadPoolExecutor for async operations
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="memory-async")
+
+        # Store fact_store reference for semantic memory integration
+        self.fact_store = fact_store
 
         # Load existing experiences if storage file exists
         if config.storage_path != ":memory:" and os.path.exists(config.storage_path):
@@ -415,6 +429,20 @@ class ProceduralMemory:
 
         # Add to in-memory list
         self.experiences.append(experience)
+
+        # Extract facts if FactStore is configured
+        if self.fact_store is not None:
+            try:
+                # Generate source_id from timestamp
+                source_id = f"exp_{int(experience.timestamp)}"
+
+                # Extract facts from action + result text
+                text = f"{experience.action}. {experience.result}"
+                facts = self.fact_store.extract_facts(text, source_id=source_id)
+
+                logger.debug(f"Extracted {len(facts)} facts from experience")
+            except Exception as e:
+                logger.warning(f"Failed to extract facts: {e}")
 
         # Update FAISS index if available
         if self.use_faiss and experience.embedding is not None:
