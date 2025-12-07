@@ -478,6 +478,18 @@ class ProceduralMemory:
 
             self._embedding_dimension = expected_dim
 
+            # Check memory limit before building index
+            estimated_memory_mb = (len(filtered_embeddings) * expected_dim * 4) / (1024 * 1024)
+            if estimated_memory_mb > self.config.faiss_memory_limit_mb:
+                logger.warning(
+                    f"FAISS index would use ~{estimated_memory_mb:.1f}MB "
+                    f"(limit: {self.config.faiss_memory_limit_mb}MB). "
+                    f"Disabling FAISS, falling back to linear scan."
+                )
+                self._faiss_index = None
+                self._embedding_dimension = None
+                return
+
             # Convert to numpy array and normalize for cosine similarity
             embeddings_np = np.array(filtered_embeddings, dtype=np.float32)
 

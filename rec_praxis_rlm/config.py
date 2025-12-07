@@ -70,6 +70,12 @@ class MemoryConfig(BaseModel):
         default=50000,
         description="Maximum size of result string in bytes",
     )
+    faiss_memory_limit_mb: int = Field(
+        default=500,
+        ge=10,
+        le=10000,
+        description="Maximum memory for FAISS index in MB (default 500MB)",
+    )
 
     @field_validator("storage_path")
     @classmethod
