@@ -151,6 +151,7 @@ class PlannerConfig(BaseModel):
 
     Attributes:
         lm_model: Language model identifier (e.g., 'openai/gpt-4o-mini')
+        api_key: API key for LLM provider (optional, falls back to env vars)
         temperature: Sampling temperature (0.0 = deterministic, 2.0 = very random)
         max_iters: Maximum number of ReAct iterations
         enable_mlflow_tracing: If True, enable MLflow automatic tracing
@@ -162,6 +163,10 @@ class PlannerConfig(BaseModel):
     lm_model: str = Field(
         default="openai/gpt-4o-mini",
         description="Language model identifier",
+    )
+    api_key: Optional[str] = Field(
+        default=None,
+        description="API key for LLM provider (optional, falls back to env vars)",
     )
     temperature: float = Field(
         default=0.0,

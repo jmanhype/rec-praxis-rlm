@@ -48,14 +48,13 @@ context.add_document("sample_log", """
 
 # Test with Groq API - llama-3.3-70b-versatile (latest model)
 print("\n1. Testing with Groq (llama-3.3-70b-versatile)...")
+print("   Using programmatic api_key parameter...")
 try:
-    # Set Groq API key in environment for DSPy
-    os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY", "")
-
     planner = PraxisRLMPlanner(
         memory=memory,
         config=PlannerConfig(
             lm_model="groq/llama-3.3-70b-versatile",  # Latest Groq model
+            api_key=os.getenv("GROQ_API_KEY"),  # Pass key programmatically
             temperature=0.0,
             max_iters=3,  # Limit iterations for testing
             enable_mlflow_tracing=False  # Disable for quick test
@@ -78,14 +77,13 @@ except Exception as e:
 
 # Test with OpenRouter
 print("\n2. Testing with OpenRouter (meta-llama/llama-3.2-3b-instruct:free)...")
+print("   Using programmatic api_key parameter...")
 try:
-    # Set OpenRouter API key in environment for DSPy
-    os.environ["OPENROUTER_API_KEY"] = os.getenv("OPENROUTER_API_KEY", "")
-
     planner_or = PraxisRLMPlanner(
         memory=memory,
         config=PlannerConfig(
             lm_model="openrouter/meta-llama/llama-3.2-3b-instruct:free",
+            api_key=os.getenv("OPENROUTER_API_KEY"),  # Pass key programmatically
             temperature=0.0,
             max_iters=3,
             enable_mlflow_tracing=False

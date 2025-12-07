@@ -66,9 +66,13 @@ class PraxisRLMPlanner:
         self.config = config
         self.contexts: dict[str, RLMContext] = {}
 
-        # Configure DSPy LM
-        lm = dspy.LM(config.lm_model, temperature=config.temperature)
-        dspy.configure(lm=lm)
+        # Configure DSPy LM with optional API key
+        lm_kwargs = {"temperature": config.temperature}
+        if config.api_key:
+            lm_kwargs["api_key"] = config.api_key
+
+        self._lm = dspy.LM(config.lm_model, **lm_kwargs)
+        dspy.configure(lm=self._lm)
 
         # Enable MLflow tracing if configured
         if config.enable_mlflow_tracing and mlflow is not None:
@@ -115,6 +119,9 @@ class PraxisRLMPlanner:
     def plan(self, goal: str, env_features: list[str]) -> str:
         """Generate a plan for the given goal using ReAct reasoning.
 
+        Uses dspy.context() for thread-safe model switching, allowing multiple
+        PraxisRLMPlanner instances with different models in the same process.
+
         Args:
             goal: The goal to plan for
             env_features: Environmental features describing the context
@@ -132,12 +139,15 @@ class PraxisRLMPlanner:
             },
         )
 
-        # Call ReAct agent
+        # Call ReAct agent with thread-safe context switching
         env_str = ", ".join(env_features)
         question = (
             f"Goal: {goal}\n" f"Environment: {env_str}\n" f"Generate a plan to achieve this goal."
         )
-        result = self._agent(question=question)
+
+        # Use dspy.context() for thread-safe model switching
+        with dspy.context(lm=self._lm):
+            result = self._agent(question=question)
 
         # Extract answer
         answer = result.answer if hasattr(result, "answer") else str(result)

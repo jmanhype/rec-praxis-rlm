@@ -149,26 +149,39 @@ from rec_praxis_rlm.config import PlannerConfig, MemoryConfig
 # Initialize memory and planner
 memory = ProceduralMemory(MemoryConfig())
 
-# Option 1: Use Groq (fast, free API)
-import os
-os.environ["GROQ_API_KEY"] = "gsk-..."
+# Option 1: Programmatic API key (recommended for Groq)
 planner = PraxisRLMPlanner(
     memory=memory,
-    config=PlannerConfig(lm_model="groq/llama-3.3-70b-versatile")
+    config=PlannerConfig(
+        lm_model="groq/llama-3.3-70b-versatile",
+        api_key="gsk-..."  # Pass key directly
+    )
 )
 
-# Option 2: Use OpenAI
-# os.environ["OPENAI_API_KEY"] = "sk-..."
+# Option 2: Environment variables (works for all providers)
+# import os
+# os.environ["GROQ_API_KEY"] = "gsk-..."
 # planner = PraxisRLMPlanner(
 #     memory=memory,
-#     config=PlannerConfig(lm_model="openai/gpt-4o-mini")
+#     config=PlannerConfig(lm_model="groq/llama-3.3-70b-versatile")
 # )
 
-# Option 3: Use OpenRouter (access to many models)
-# os.environ["OPENROUTER_API_KEY"] = "sk-or-..."
+# Option 3: OpenAI with programmatic key
 # planner = PraxisRLMPlanner(
 #     memory=memory,
-#     config=PlannerConfig(lm_model="openrouter/meta-llama/llama-3.2-3b-instruct:free")
+#     config=PlannerConfig(
+#         lm_model="openai/gpt-4o-mini",
+#         api_key="sk-..."
+#     )
+# )
+
+# Option 4: OpenRouter with programmatic key
+# planner = PraxisRLMPlanner(
+#     memory=memory,
+#     config=PlannerConfig(
+#         lm_model="openrouter/meta-llama/llama-3.2-3b-instruct:free",
+#         api_key="sk-or-..."
+#     )
 # )
 
 # Add context for document inspection
@@ -341,6 +354,7 @@ from rec_praxis_rlm.config import PlannerConfig
 
 config = PlannerConfig(
     lm_model="openai/gpt-4o-mini",    # Language model
+    api_key="sk-...",                  # Optional API key (or use env vars)
     temperature=0.0,                   # Sampling temperature
     max_iters=10,                      # Max ReAct iterations
     enable_mlflow_tracing=True,        # MLflow observability

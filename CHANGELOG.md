@@ -8,11 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Programmatic API key support via `PlannerConfig.api_key` parameter
+- Thread-safe model switching using `dspy.context()` in `plan()` method
+- Multi-model support: can use different models in same process without conflicts
 - Clear "Requirements" section in README documenting what works without API keys
 - Comprehensive "Supported LLM Providers" section with examples for Groq, OpenAI, OpenRouter, and others
 - Multi-provider examples in DSPy autonomous planning quickstart
 - Verified Groq integration (llama-3.3-70b-versatile model)
 - Documentation highlighting Groq as recommended provider (fast, free)
+- Updated examples to show programmatic API key usage
+
+### Changed
+- `PraxisRLMPlanner` now stores LM instance as `self._lm` for context switching
+- API keys can now be passed programmatically or via environment variables
 
 ### Fixed
 - Updated DSPy 3.0 ReAct API compatibility (now requires signature parameter)
