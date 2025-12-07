@@ -637,12 +637,12 @@ rec-praxis-deps --requirements=requirements.txt --files src/config.py --format=s
 Generate beautiful, shareable security reports for stakeholders (v0.4.4+):
 
 **Features**:
-- 📊 **Interactive Charts**: Severity distribution (pie chart) and OWASP Top 10 breakdown (bar chart)
-- 🔍 **Filterable Tables**: Click severity badges to filter findings instantly
-- 📋 **Detailed Findings**: Expandable remediation advice for each issue
-- 🎨 **Print-to-PDF**: Built-in print stylesheet for professional PDF export
-- 🔗 **Standalone Files**: No external dependencies - share HTML files directly
-- 📦 **CVE Support**: Displays dependency vulnerabilities with upgrade paths
+- **Interactive Charts**: Severity distribution (pie chart) and OWASP Top 10 breakdown (bar chart)
+- **Filterable Tables**: Click severity badges to filter findings instantly
+- **Detailed Findings**: Expandable remediation advice for each issue
+- **Print-to-PDF**: Built-in print stylesheet for professional PDF export
+- **Standalone Files**: No external dependencies - share HTML files directly
+- **CVE Support**: Displays dependency vulnerabilities with upgrade paths
 
 **Example Usage**:
 
@@ -795,12 +795,12 @@ See the `examples/` directory for complete examples:
 We welcome contributions from the community! Here's how you can help:
 
 **Ways to Contribute:**
-- 🐛 Report bugs via [GitHub Issues](https://github.com/jmanhype/rec-praxis-rlm/issues)
-- 💡 Propose features or improvements
-- 📖 Improve documentation
-- 🔧 Submit bug fixes or new features via pull requests
-- ⭐ Star the repository to show support
-- 💬 Join discussions in [GitHub Discussions](https://github.com/jmanhype/rec-praxis-rlm/discussions)
+- Report bugs via [GitHub Issues](https://github.com/jmanhype/rec-praxis-rlm/issues)
+- Propose features or improvements
+- Improve documentation
+- Submit bug fixes or new features via pull requests
+- Star the repository to show support
+- Join discussions in [GitHub Discussions](https://github.com/jmanhype/rec-praxis-rlm/discussions)
 
 **Development Setup:**
 
@@ -843,11 +843,11 @@ We are committed to providing a welcoming and inclusive environment. Please:
 
 ### Getting Help
 
-- 📚 **Documentation**: [GitHub README](https://github.com/jmanhype/rec-praxis-rlm#readme)
-- 💬 **Discord Community**: [Join our Discord](https://discord.gg/rec-praxis-rlm) for real-time chat
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/jmanhype/rec-praxis-rlm/issues)
-- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/jmanhype/rec-praxis-rlm/discussions)
-- 📧 **Email**: jmanhype@users.noreply.github.com (for security issues)
+- **Documentation**: [GitHub README](https://github.com/jmanhype/rec-praxis-rlm#readme)
+- **Discord Community**: [Join our Discord](https://discord.gg/rec-praxis-rlm) for real-time chat
+- **Bug Reports**: [GitHub Issues](https://github.com/jmanhype/rec-praxis-rlm/issues)
+- **Feature Requests**: [GitHub Discussions](https://github.com/jmanhype/rec-praxis-rlm/discussions)
+- **Email**: jmanhype@users.noreply.github.com (for security issues)
 
 ### Recognition
 
