@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rec-praxis-rlm"
-version = "0.4.1"
+version = "0.4.2"
 description = "Procedural memory + REPL context package with DSPy 3.0 integration for autonomous agents"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,10 +38,6 @@ all = [
     "openai>=1.0",
     "aiofiles>=23.0",
     "faiss-cpu>=1.7",
-    "dspy-toon>=0.1.0",  # Token-efficient TOON format for DSPy
-]
-toon = [
-    "dspy-toon>=0.1.0",  # Standalone TOON support
 ]
 dev = [
     "pytest>=7.4",
