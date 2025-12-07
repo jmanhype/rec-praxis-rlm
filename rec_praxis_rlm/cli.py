@@ -29,8 +29,10 @@ def cli_code_review() -> int:
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
     parser.add_argument("--format", default="human",
-                       choices=["human", "json", "toon", "sarif"],
-                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security)")
+                       choices=["human", "json", "toon", "sarif", "html"],
+                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security, html=interactive report)")
+    parser.add_argument("--output", type=str,
+                       help="Output file path for HTML reports (default: code-review-report.html)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
@@ -88,6 +90,12 @@ def cli_code_review() -> int:
     elif args.format == "sarif":
         from rec_praxis_rlm.formatters import format_findings_as_sarif
         print(format_findings_as_sarif(all_findings, tool_name="rec-praxis-review"))
+    elif args.format == "html":
+        from rec_praxis_rlm.reporters import generate_html_report
+        output_path = args.output or "code-review-report.html"
+        report_path = generate_html_report(all_findings, output_path)
+        print(f"✅ HTML report generated: {report_path}")
+        return 1 if blocking_findings else 0
     else:  # human format
         if all_findings:
             print(f"\n🔍 Code Review Results: {len(all_findings)} issue(s) found\n")
@@ -117,8 +125,10 @@ def cli_security_audit() -> int:
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
     parser.add_argument("--format", default="human",
-                       choices=["human", "json", "toon", "sarif"],
-                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security)")
+                       choices=["human", "json", "toon", "sarif", "html"],
+                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security, html=interactive report)")
+    parser.add_argument("--output", type=str,
+                       help="Output file path for HTML reports (default: security-audit-report.html)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
@@ -180,6 +190,12 @@ def cli_security_audit() -> int:
     elif args.format == "sarif":
         from rec_praxis_rlm.formatters import format_findings_as_sarif
         print(format_findings_as_sarif(report.findings, tool_name="rec-praxis-audit"))
+    elif args.format == "html":
+        from rec_praxis_rlm.reporters import generate_html_report
+        output_path = args.output or "security-audit-report.html"
+        report_path = generate_html_report(report.findings, output_path)
+        print(f"✅ HTML report generated: {report_path}")
+        return 1 if blocking_findings else 0
     else:  # human format
         print(agent.format_report(report))
 
@@ -203,8 +219,10 @@ def cli_dependency_scan() -> int:
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
     parser.add_argument("--format", default="human",
-                       choices=["human", "json", "toon", "sarif"],
-                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security)")
+                       choices=["human", "json", "toon", "sarif", "html"],
+                       help="Output format (default: human, toon=40%% token reduction, sarif=GitHub Security, html=interactive report)")
+    parser.add_argument("--output", type=str,
+                       help="Output file path for HTML reports (default: dependency-scan-report.html)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
@@ -287,6 +305,20 @@ def cli_dependency_scan() -> int:
         # For dependency scans, we only output CVE findings in SARIF format
         # Secret findings require file locations which we have but CVE is more important for GitHub Security
         print(format_cve_findings_as_sarif(cve_findings, tool_name="rec-praxis-deps"))
+    elif args.format == "html":
+        from rec_praxis_rlm.reporters import generate_html_report
+        # For dependency scans, convert CVE/Secret findings to regular findings for HTML report
+        # We'll create a pseudo-finding list that combines both
+        combined_findings = []
+        for cve in cve_findings:
+            # Convert CVEFinding to Finding-like dict for HTML template
+            combined_findings.append(cve)
+        for secret in secret_findings:
+            combined_findings.append(secret)
+        output_path = args.output or "dependency-scan-report.html"
+        report_path = generate_html_report([], output_path, cve_findings=cve_findings, secret_findings=secret_findings)
+        print(f"✅ HTML report generated: {report_path}")
+        return 1 if blocking_findings else 0
     else:  # human format
         print(report)
 
