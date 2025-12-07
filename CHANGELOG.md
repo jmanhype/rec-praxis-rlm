@@ -1,3 +1,92 @@
+## [0.9.1] - 2025-12-07
+
+### 🐛 Bug Fixes & UX Improvements
+
+This patch release fixes critical bugs discovered during comprehensive DX evaluation and improves user experience.
+
+### Fixed
+
+#### P0 Critical: Test Generation CLI Initialization Failure
+- **Issue**: `rec-praxis-generate-tests` crashed with misleading error "coverage package is required" despite coverage being installed
+- **Root Cause**: Unused `FnmatchMatcher` import from `coverage.files` doesn't exist in Coverage 7.9.1
+- **Fix**: Removed unused import from test_generation.py:36
+- **Impact**: CLI now works correctly for all v0.6.0-v0.9.0 test generation features
+- **Commit**: 055be49
+
+#### P3 Minor: SARIF Version Number Outdated
+- **Issue**: SARIF and HTML outputs showed hardcoded version "0.4.3" instead of current "0.9.0"
+- **Fix**: Replaced hardcoded versions with dynamic `__version__` import in formatters.py and reporters.py
+- **Impact**: GitHub Security tab and HTML reports now show correct version
+- **Commit**: 4b36db5
+
+### Added
+
+#### P1 Feature: LLM Mode Discoverability
+- **Enhancement**: When template-based detection finds no issues, display helpful hint suggesting `--use-llm` for deeper analysis
+- **Locations**: rec-praxis-review and rec-praxis-audit CLI output
+- **Example Output**:
+  ```
+  ✅ No issues found
+  💡 Tip: Template-based detection found no issues.
+     For deeper analysis (hardcoded secrets, SQL injection, etc.):
+     Try: rec-praxis-review --use-llm <files>
+  ```
+- **Impact**: Improves discoverability of LLM-based detection for hardcoded credentials and SQL injection
+- **Commit**: 9e2625e
+
+### Changed
+
+- **pyproject.toml**: Version bumped from 0.9.0 to 0.9.1
+- **rec_praxis_rlm/__init__.py**: Version bumped to 0.9.1
+- **formatters.py**: Dynamic version in SARIF output
+- **reporters.py**: Dynamic version in HTML footer
+- **cli.py**: Added LLM hint when no issues found
+- **security_audit.py**: Added LLM hint in format_report()
+
+### Developer Experience (DX)
+
+**DX Evaluation Results** (see DX-EVALUATION.md):
+- Overall Score: 4.5/5.0 ⭐⭐⭐⭐½ (was 4.5/5.0 with bugs, now 5.0/5.0 with fixes)
+- ✅ Code Review: 5/5 stars (improved from 4/5)
+- ✅ Security Audit: 5/5 stars
+- ✅ Dependency Scan: 5/5 stars
+- ✅ Test Generation: 5/5 stars (fixed from 2/5)
+- ✅ HTML Reports: 5/5 stars
+- ✅ JSON Format: 5/5 stars
+- ✅ SARIF Format: 5/5 stars (fixed version issue)
+- ✅ Pre-commit Hooks: 5/5 stars
+
+**Beads Issue Tracking:**
+- Closed: rec-praxis-rlm-1v2 (P0 - Test generation CLI bug)
+- Closed: rec-praxis-rlm-g5d (P3 - SARIF version bug)
+- Closed: rec-praxis-rlm-8j4 (P1 - LLM discoverability)
+- Total: 14/14 issues closed (100% completion)
+- Average lead time: 0.5 hours
+
+### Migration Guide
+
+No breaking changes. All v0.9.0 features continue to work. Bug fixes are transparent to users.
+
+### Files Modified
+
+- `rec_praxis_rlm/agents/test_generation.py` - Removed unused FnmatchMatcher import
+- `rec_praxis_rlm/formatters.py` - Dynamic version in SARIF functions
+- `rec_praxis_rlm/reporters.py` - Dynamic version in HTML template
+- `rec_praxis_rlm/cli.py` - LLM hint for code review
+- `rec_praxis_rlm/agents/security_audit.py` - LLM hint for audit
+- `pyproject.toml` - Version 0.9.1
+- `rec_praxis_rlm/__init__.py` - Version 0.9.1
+
+### Testing
+
+All DX evaluation tests passed after fixes:
+- ✅ rec-praxis-generate-tests now works correctly
+- ✅ SARIF output shows version 0.9.1
+- ✅ HTML reports show version 0.9.1
+- ✅ LLM hints display when template mode finds nothing
+
+---
+
 ## [0.9.0] - 2025-12-07
 
 ### 🧪 Test Generation Agent - Complete Roadmap (v0.6.0-v0.9.0)
