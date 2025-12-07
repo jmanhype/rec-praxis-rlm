@@ -609,6 +609,9 @@ rec-praxis-review src/**/*.py --severity=HIGH --format=toon
 # Code review (SARIF for GitHub Security tab)
 rec-praxis-review src/**/*.py --format=sarif > code-review.sarif
 
+# Code review (Interactive HTML report for stakeholders)
+rec-praxis-review src/**/*.py --format=html --output=security-report.html
+
 # Security audit
 rec-praxis-audit app.py --fail-on=CRITICAL --format=sarif > security-audit.sarif
 
@@ -621,12 +624,56 @@ rec-praxis-deps --requirements=requirements.txt --files src/config.py --format=s
 - **json**: Structured JSON for IDE integration and programmatic parsing
 - **toon**: Token-efficient format providing ~40% token reduction (experimental)
 - **sarif**: SARIF v2.1.0 format for GitHub Security tab integration (v0.4.3+)
+- **html**: Interactive HTML reports with charts and filtering (v0.4.4+)
 
 **Features**:
 - Configurable severity thresholds
 - Persistent procedural memory (learns from past reviews)
 - Exit codes for CI/CD pipelines
 - TOON format support for cost-effective LLM integration
+
+### Interactive HTML Reports
+
+Generate beautiful, shareable security reports for stakeholders (v0.4.4+):
+
+**Features**:
+- 📊 **Interactive Charts**: Severity distribution (pie chart) and OWASP Top 10 breakdown (bar chart)
+- 🔍 **Filterable Tables**: Click severity badges to filter findings instantly
+- 📋 **Detailed Findings**: Expandable remediation advice for each issue
+- 🎨 **Print-to-PDF**: Built-in print stylesheet for professional PDF export
+- 🔗 **Standalone Files**: No external dependencies - share HTML files directly
+- 📦 **CVE Support**: Displays dependency vulnerabilities with upgrade paths
+
+**Example Usage**:
+
+```bash
+# Generate HTML report from code review
+rec-praxis-review src/**/*.py --format=html --output=security-report.html
+
+# Security audit HTML report
+rec-praxis-audit app.py --format=html --output=audit-report.html
+
+# Dependency scan with CVEs
+rec-praxis-deps --requirements=requirements.txt --files src/*.py --format=html --output=deps-report.html
+```
+
+**Report Contents**:
+- Summary cards (Total findings, Critical count, High count, Medium/Low count)
+- Severity distribution donut chart (powered by Chart.js)
+- OWASP Top 10 category breakdown bar chart
+- Sortable/filterable findings table with:
+  - Severity badges (color-coded)
+  - File paths and line numbers
+  - Expandable remediation guidance
+  - CWE and OWASP categorization
+- CVE vulnerability table (if applicable)
+- Print/Save to PDF button
+
+**Use Cases**:
+- Share security reports with non-technical stakeholders
+- Archive security scan results for compliance audits
+- Present findings in management reviews
+- Embed in documentation or wikis
 
 ### VS Code Extension
 
