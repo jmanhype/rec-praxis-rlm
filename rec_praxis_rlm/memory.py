@@ -945,3 +945,114 @@ class ProceduralMemory:
         """
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self._executor, self.recall, env_features, goal, top_k)
+
+    def recall_layer1(
+        self,
+        env_features: list[str],
+        goal: str,
+        top_k: Optional[int] = None,
+    ) -> tuple[list[str], list[Experience]]:
+        """Progressive disclosure layer 1: Compressed summaries.
+
+        Returns compressed experience summaries (~500 tokens each) for token-efficient
+        initial retrieval. User can expand to layer 2/3 for more details.
+
+        Args:
+            env_features: Environmental features to match
+            goal: Goal to match
+            top_k: Number of experiences to return
+
+        Returns:
+            Tuple of (compressed_summaries, original_experiences)
+            compressed_summaries: List of ~500 token summaries
+            original_experiences: Full Experience objects for expansion
+        """
+        # Get full experiences
+        experiences = self.recall(env_features, goal, top_k)
+
+        # Compress them if compression module available
+        try:
+            from rec_praxis_rlm.compression import ObservationCompressor
+
+            compressor = ObservationCompressor()
+            compressed = compressor.compress_batch(experiences)
+            return compressed, experiences
+        except (ImportError, Exception) as e:
+            # Fallback: return truncated text if compression unavailable or fails
+            # (e.g., missing API key, import error, etc.)
+            logger.debug(f"Compression unavailable ({type(e).__name__}), using fallback summaries")
+            summaries = [
+                f"{exp.goal[:100]}... (use layer2 for details)" for exp in experiences
+            ]
+            return summaries, experiences
+
+    def recall_layer2(
+        self,
+        experiences: list[Experience],
+    ) -> list[Experience]:
+        """Progressive disclosure layer 2: Full experiences.
+
+        Returns full experience details. Use after layer1 when user requests more context.
+
+        Args:
+            experiences: Experiences from layer1
+
+        Returns:
+            Same experiences (full details already available)
+        """
+        return experiences
+
+    def recall_layer3(
+        self,
+        experiences: list[Experience],
+        expand_top_n: int = 3,
+    ) -> list[Experience]:
+        """Progressive disclosure layer 3: Related context expansion.
+
+        Expands to include related experiences based on tags and environmental features
+        from top N experiences. Provides broader context.
+
+        Args:
+            experiences: Experiences from layer2
+            expand_top_n: Number of top experiences to use for expansion
+
+        Returns:
+            Extended list of experiences (original + related)
+        """
+        if not experiences:
+            return []
+
+        # Use top N experiences to find related context
+        top_experiences = experiences[:expand_top_n]
+
+        # Collect all tags and env features from top experiences
+        related_tags = set()
+        related_env = set()
+
+        for exp in top_experiences:
+            if hasattr(exp, "tags"):
+                related_tags.update(exp.tags)
+            related_env.update(exp.env_features)
+
+        # Find additional experiences matching these tags/env
+        all_related = []
+        for exp in self.experiences:
+            # Skip if already in results
+            if exp in experiences:
+                continue
+
+            # Check for tag overlap
+            if hasattr(exp, "tags") and exp.tags:
+                tag_overlap = len(set(exp.tags) & related_tags)
+                if tag_overlap > 0:
+                    all_related.append(exp)
+                    continue
+
+            # Check for env feature overlap
+            env_overlap = len(set(exp.env_features) & related_env)
+            if env_overlap > 0:
+                all_related.append(exp)
+
+        # Return original + top related (limit expansion)
+        max_expansion = len(experiences) * 2  # Double the original count
+        return experiences + all_related[:max_expansion]
