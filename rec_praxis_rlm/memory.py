@@ -380,10 +380,24 @@ class ProceduralMemory:
             vec_b: Second vector
 
         Returns:
-            Cosine similarity score (-1.0 to 1.0)
+            Cosine similarity score (-1.0 to 1.0), or 0.0 if invalid
+
+        Raises:
+            ValueError: If vectors have different dimensions
         """
         if len(vec_a) != len(vec_b):
             raise ValueError("Vectors must have same dimension")
+
+        # Check for NaN/Inf in input vectors
+        for i, val in enumerate(vec_a):
+            if not np.isfinite(val):
+                logger.warning(f"NaN/Inf detected in vec_a at index {i}, returning 0.0")
+                return 0.0
+
+        for i, val in enumerate(vec_b):
+            if not np.isfinite(val):
+                logger.warning(f"NaN/Inf detected in vec_b at index {i}, returning 0.0")
+                return 0.0
 
         dot_product = sum(a * b for a, b in zip(vec_a, vec_b))
         norm_a = sum(a * a for a in vec_a) ** 0.5
@@ -392,7 +406,14 @@ class ProceduralMemory:
         if norm_a == 0.0 or norm_b == 0.0:
             return 0.0
 
-        return dot_product / (norm_a * norm_b)
+        similarity = dot_product / (norm_a * norm_b)
+
+        # Validate result
+        if not np.isfinite(similarity):
+            logger.warning(f"NaN/Inf in similarity result, returning 0.0")
+            return 0.0
+
+        return similarity
 
     def _rebuild_faiss_index(self) -> None:
         """Rebuild FAISS index from current experiences.
