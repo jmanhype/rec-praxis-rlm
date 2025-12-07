@@ -1,6 +1,7 @@
 """Procedural memory storage and retrieval with hybrid similarity scoring."""
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -27,7 +28,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Storage format version for backward compatibility
-STORAGE_VERSION = "1.0"
+STORAGE_VERSION = "2.0"
 
 # Try to import FAISS for fast similarity search
 try:
@@ -203,7 +204,25 @@ class ProceduralMemory:
                     continue
 
                 try:
-                    obj = json.loads(line)
+                    # For v2.0+, lines have format: checksum|json_data
+                    if file_version >= "2.0" and "|" in line:
+                        checksum, json_data = line.split("|", 1)
+
+                        # Validate checksum
+                        computed_checksum = hashlib.sha256(json_data.encode()).hexdigest()
+                        if computed_checksum != checksum:
+                            logger.error(
+                                f"Checksum mismatch on line {line_num}: "
+                                f"expected {checksum}, got {computed_checksum}. "
+                                f"Data may be corrupted. Skipping this experience."
+                            )
+                            continue
+
+                        obj = json.loads(json_data)
+                    else:
+                        # Legacy format (no checksum)
+                        obj = json.loads(line)
+
                     exp = Experience(**obj)
                     self.experiences.append(exp)
                 except Exception as e:
@@ -229,11 +248,26 @@ class ProceduralMemory:
         """
         logger.info(f"Migrating storage from version {from_version} to {STORAGE_VERSION}")
 
-        # Future migration logic goes here
-        # For now, we only have version 1.0, so any other version is unsupported
-        if from_version == "0.0":
-            # Legacy format (no changes needed for 0.0 -> 1.0)
-            logger.info("Migrating from legacy format (0.0) to 1.0")
+        if from_version == "0.0" or from_version == "1.0":
+            # Migrate to 2.0 by adding checksums
+            logger.info(f"Migrating from {from_version} to 2.0 (adding checksums)")
+            migrated_lines = []
+
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Compute checksum for existing JSON data
+                checksum = hashlib.sha256(line.encode()).hexdigest()
+
+                # New format: checksum|json_data
+                migrated_line = f"{checksum}|{line}"
+                migrated_lines.append(migrated_line)
+
+            return migrated_lines
+        elif from_version == "2.0":
+            # Already at 2.0, no migration needed
             return lines
         else:
             # Unsupported version
@@ -276,8 +310,10 @@ class ProceduralMemory:
                         version_marker = json.dumps({"__version__": STORAGE_VERSION})
                         temp_file.write(version_marker + "\n")
 
-                    # Append new experience
-                    temp_file.write(experience.model_dump_json() + "\n")
+                    # Append new experience with checksum (v2.0 format)
+                    json_data = experience.model_dump_json()
+                    checksum = hashlib.sha256(json_data.encode()).hexdigest()
+                    temp_file.write(f"{checksum}|{json_data}\n")
 
                 # Atomic rename
                 os.replace(temp_path, self.config.storage_path)
@@ -688,7 +724,7 @@ class ProceduralMemory:
         if self.use_faiss:
             self._rebuild_faiss_index()
 
-        # Rewrite storage file with version marker
+        # Rewrite storage file with version marker and checksums
         if self.config.storage_path != ":memory:":
             try:
                 with open(self.config.storage_path, "w") as f:
@@ -696,9 +732,11 @@ class ProceduralMemory:
                     version_marker = json.dumps({"__version__": STORAGE_VERSION})
                     f.write(version_marker + "\n")
 
-                    # Write experiences
+                    # Write experiences with checksums (v2.0 format)
                     for exp in self.experiences:
-                        f.write(exp.model_dump_json() + "\n")
+                        json_data = exp.model_dump_json()
+                        checksum = hashlib.sha256(json_data.encode()).hexdigest()
+                        f.write(f"{checksum}|{json_data}\n")
             except Exception as e:
                 raise StorageError(f"Failed to compact storage: {e}")
 
@@ -728,7 +766,7 @@ class ProceduralMemory:
         if self.use_faiss:
             self._rebuild_faiss_index()
 
-        # Rewrite storage with version marker
+        # Rewrite storage with version marker and checksums
         if self.config.storage_path != ":memory:":
             try:
                 with open(self.config.storage_path, "w") as f:
@@ -736,9 +774,11 @@ class ProceduralMemory:
                     version_marker = json.dumps({"__version__": STORAGE_VERSION})
                     f.write(version_marker + "\n")
 
-                    # Write experiences
+                    # Write experiences with checksums (v2.0 format)
                     for exp in self.experiences:
-                        f.write(exp.model_dump_json() + "\n")
+                        json_data = exp.model_dump_json()
+                        checksum = hashlib.sha256(json_data.encode()).hexdigest()
+                        f.write(f"{checksum}|{json_data}\n")
             except Exception as e:
                 raise StorageError(f"Failed to rewrite storage: {e}")
 
