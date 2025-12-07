@@ -48,6 +48,10 @@ test-generation = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
 ]
+web = [
+    "fastapi>=0.104",
+    "uvicorn>=0.24",
+]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
@@ -67,6 +71,7 @@ rec-praxis-deps = "rec_praxis_rlm.cli:cli_dependency_scan"
 rec-praxis-pr-review = "rec_praxis_rlm.cli:cli_pr_review"
 rec-praxis-generate-tests = "rec_praxis_rlm.cli:cli_generate_tests"
 rec-praxis-rlm = "rec_praxis_rlm.cli:main"
+rec-praxis-web = "rec_praxis_rlm.web_viewer:main"
 
 [project.urls]
 Homepage = "https://github.com/jmanhype/rec-praxis-rlm"
