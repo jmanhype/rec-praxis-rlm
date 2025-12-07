@@ -16,6 +16,14 @@ from rec_praxis_rlm.metrics import (
     memory_retrieval_quality,
     SemanticF1Score,
 )
+from rec_praxis_rlm.types import (
+    Severity,
+    OWASPCategory,
+    Finding,
+    CVEFinding,
+    SecretFinding,
+    AuditReport,
+)
 
 __all__ = [
     # Version
@@ -40,4 +48,11 @@ __all__ = [
     # Metrics
     "memory_retrieval_quality",
     "SemanticF1Score",
+    # Types
+    "Severity",
+    "OWASPCategory",
+    "Finding",
+    "CVEFinding",
+    "SecretFinding",
+    "AuditReport",
 ]

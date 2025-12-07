@@ -72,7 +72,19 @@ class PraxisRLMPlanner:
             lm_kwargs["api_key"] = config.api_key
 
         self._lm = dspy.LM(config.lm_model, **lm_kwargs)
-        dspy.configure(lm=self._lm)
+
+        # Configure adapter (TOON if enabled, otherwise default)
+        adapter = None
+        if config.use_toon_adapter:
+            try:
+                from dspy_toon import ToonAdapter
+                adapter = ToonAdapter()
+                emit_event("planner.toon_enabled", {"model": config.lm_model})
+            except ImportError:
+                # Gracefully fall back to default if dspy-toon not installed
+                emit_event("planner.toon_fallback", {"reason": "dspy-toon not installed"})
+
+        dspy.configure(lm=self._lm, adapter=adapter)
 
         # Enable MLflow tracing if configured
         if config.enable_mlflow_tracing and mlflow is not None:

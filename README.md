@@ -367,9 +367,36 @@ config = PlannerConfig(
     max_iters=10,                      # Max ReAct iterations
     enable_mlflow_tracing=True,        # MLflow observability
     optimizer="miprov2",               # DSPy optimizer
-    optimizer_auto_level="medium"      # Automation level
+    optimizer_auto_level="medium",     # Automation level
+    use_toon_adapter=False             # Enable TOON format for 40% token reduction (experimental)
 )
 ```
+
+**TOON Format Support (Experimental)**:
+
+Enable TOON (Token-Oriented Object Notation) for ~40% token reduction in DSPy prompts:
+
+```python
+# Install TOON support
+# pip install rec-praxis-rlm[toon]
+
+config = PlannerConfig(
+    lm_model="openai/gpt-4o-mini",
+    use_toon_adapter=True  # Enable TOON format
+)
+
+planner = PraxisRLMPlanner(memory, config)
+# All DSPy interactions now use TOON format for efficiency
+```
+
+**Benefits**:
+- ~40% reduction in prompt tokens (saves API costs)
+- Faster inference (fewer tokens to process)
+- Same accuracy as JSON format
+
+**Compatibility**: Requires `dspy-toon>=0.1.0` (install with `pip install rec-praxis-rlm[toon]`)
+
+**Note**: TOON support is experimental in v0.4.1. Future versions (v0.6.0+) will integrate TOON into procedural memory storage for further efficiency gains. See [Issue #1](https://github.com/jmanhype/rec-praxis-rlm/issues/1) for roadmap.
 
 ## Testing
 
@@ -535,31 +562,45 @@ git commit -m "feat: add new feature"  # Hooks run automatically
 Use rec-praxis-rlm from the command line:
 
 ```bash
-# Code review
-rec-praxis-review src/**/*.py --severity=HIGH --json
+# Code review (human-readable format)
+rec-praxis-review src/**/*.py --severity=HIGH
+
+# Code review (JSON for IDE integration)
+rec-praxis-review src/**/*.py --severity=HIGH --format=json
+
+# Code review (TOON format for 40% token reduction)
+rec-praxis-review src/**/*.py --severity=HIGH --format=toon
 
 # Security audit
-rec-praxis-audit app.py --fail-on=CRITICAL
+rec-praxis-audit app.py --fail-on=CRITICAL --format=toon
 
 # Dependency & secret scan
-rec-praxis-deps --requirements=requirements.txt --files src/config.py
+rec-praxis-deps --requirements=requirements.txt --files src/config.py --format=toon
 ```
 
+**Output Formats**:
+- **human** (default): Colorful, emoji-rich output for terminal viewing
+- **json**: Structured JSON for IDE integration and programmatic parsing
+- **toon**: Token-efficient format providing ~40% token reduction (experimental)
+
 **Features**:
-- JSON output for IDE integration
 - Configurable severity thresholds
 - Persistent procedural memory (learns from past reviews)
 - Exit codes for CI/CD pipelines
+- TOON format support for cost-effective LLM integration
 
 ### VS Code Extension
 
-Install the "rec-praxis-rlm Code Intelligence" extension from the VS Code Marketplace.
+Install the "rec-praxis-rlm Code Intelligence" extension from the VS Code Marketplace, or build from source:
+
+**Repository**: [github.com/jmanhype/rec-praxis-rlm-vscode](https://github.com/jmanhype/rec-praxis-rlm-vscode)
 
 **Features**:
 - **Inline Diagnostics**: See code review and security findings as you type
 - **Context Menu**: Right-click to review/audit current file
 - **Auto-review on Save**: Real-time feedback (configurable)
 - **Dependency Scanning**: Right-click `requirements.txt` to scan for CVEs
+- **Procedural Memory Integration**: Learns from past fixes across sessions
 
 **Settings** (F1 → "Preferences: Open Settings (JSON)"):
 
@@ -568,11 +609,27 @@ Install the "rec-praxis-rlm Code Intelligence" extension from the VS Code Market
   "rec-praxis-rlm.pythonPath": "python",
   "rec-praxis-rlm.codeReview.severity": "HIGH",
   "rec-praxis-rlm.securityAudit.failOn": "CRITICAL",
-  "rec-praxis-rlm.enableDiagnostics": true
+  "rec-praxis-rlm.enableDiagnostics": true,
+  "rec-praxis-rlm.autoReviewOnSave": false
 }
 ```
 
-See `vscode-extension/README.md` for full documentation.
+**Installation**:
+```bash
+# From VS Code
+# 1. Open Extensions (Ctrl+Shift+X / Cmd+Shift+X)
+# 2. Search for "rec-praxis-rlm"
+# 3. Click Install
+
+# From source (for developers)
+git clone https://github.com/jmanhype/rec-praxis-rlm-vscode.git
+cd rec-praxis-rlm-vscode
+npm install && npm run compile
+npm run package  # Creates .vsix file
+# Install .vsix via VS Code: Extensions → ... → Install from VSIX
+```
+
+See the [VS Code extension repository](https://github.com/jmanhype/rec-praxis-rlm-vscode) for full documentation.
 
 ### GitHub Actions
 
@@ -603,8 +660,35 @@ jobs:
 - Artifact uploads for review results
 - Configurable severity thresholds
 - Supports matrix builds (Python 3.10+)
+- **Dogfooding**: This repo uses its own tools to scan the `examples/` directory on every push
 
-See `.github/workflows/rec-praxis-scan.yml` for full workflow example.
+**Dogfooding Workflow**:
+
+The rec-praxis-rlm project dogfoods its own tools by scanning the `examples/` directory on every push to main:
+
+```yaml
+# .github/workflows/rec-praxis-scan.yml (dogfood-examples job)
+dogfood-examples:
+  name: Dogfood on Examples
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+    - run: pip install -e .[all]  # Install from source
+    - run: rec-praxis-review examples/*.py --severity=MEDIUM --json
+    - run: rec-praxis-audit examples/*.py --fail-on=HIGH --json
+    - run: rec-praxis-deps --requirements=requirements.txt --files examples/*.py
+```
+
+This demonstrates:
+- **Self-validation**: The tools scan themselves for quality issues
+- **Real-world usage**: Shows the tools working on production code
+- **Continuous improvement**: Catches regressions in example code
+- **Non-blocking**: Uses `continue-on-error: true` to show findings without failing CI
+
+View dogfooding results in the [GitHub Actions artifacts](https://github.com/jmanhype/rec-praxis-rlm/actions).
+
+See `.github/workflows/rec-praxis-scan.yml` for the full workflow implementation.
 
 ## Examples
 

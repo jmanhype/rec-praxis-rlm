@@ -28,15 +28,24 @@ def cli_code_review() -> int:
                        help="Minimum severity to fail on (default: HIGH)")
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
+    parser.add_argument("--format", default="human",
+                       choices=["human", "json", "toon"],
+                       help="Output format (default: human, toon=40%% token reduction)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
 
+    # Handle legacy --json flag
+    if args.json:
+        args.format = "json"
+
     # Lazy import to avoid loading heavy dependencies unless needed
     try:
-        from examples.code_review_agent import CodeReviewAgent, Severity
-    except ImportError:
-        print("Error: CodeReviewAgent example not found. Install rec-praxis-rlm[all]")
+        from rec_praxis_rlm.agents import CodeReviewAgent
+        from rec_praxis_rlm.types import Severity
+    except ImportError as e:
+        print(f"Error: Failed to import CodeReviewAgent: {e}")
+        print("Install rec-praxis-rlm[all] and ensure package is installed correctly")
         return 1
 
     # Initialize agent with persistent memory
@@ -66,24 +75,17 @@ def cli_code_review() -> int:
     ]
 
     # Output results
-    if args.json:
+    if args.format == "json":
         output = {
             "total_findings": len(all_findings),
             "blocking_findings": len(blocking_findings),
-            "findings": [
-                {
-                    "file": f.file_path,
-                    "line": f.line_number,
-                    "severity": f.severity.name,
-                    "title": f.title,
-                    "description": f.description,
-                    "remediation": f.remediation
-                }
-                for f in all_findings
-            ]
+            "findings": [f.to_dict() for f in all_findings]
         }
         print(json.dumps(output, indent=2))
-    else:
+    elif args.format == "toon":
+        from rec_praxis_rlm.formatters import format_code_review_as_toon
+        print(format_code_review_as_toon(len(all_findings), len(blocking_findings), all_findings))
+    else:  # human format
         if all_findings:
             print(f"\n🔍 Code Review Results: {len(all_findings)} issue(s) found\n")
             for f in all_findings:
@@ -111,15 +113,24 @@ def cli_security_audit() -> int:
                        help="Fail on this severity or higher (default: CRITICAL)")
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
+    parser.add_argument("--format", default="human",
+                       choices=["human", "json", "toon"],
+                       help="Output format (default: human, toon=40%% token reduction)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
 
+    # Handle legacy --json flag
+    if args.json:
+        args.format = "json"
+
     # Lazy import
     try:
-        from examples.security_audit_agent import SecurityAuditAgent, Severity
-    except ImportError:
-        print("Error: SecurityAuditAgent example not found. Install rec-praxis-rlm[all]")
+        from rec_praxis_rlm.agents import SecurityAuditAgent
+        from rec_praxis_rlm.types import Severity
+    except ImportError as e:
+        print(f"Error: Failed to import SecurityAuditAgent: {e}")
+        print("Install rec-praxis-rlm[all] and ensure package is installed correctly")
         return 1
 
     # Initialize agent
@@ -147,27 +158,23 @@ def cli_security_audit() -> int:
     ]
 
     # Output results
-    if args.json:
+    if args.format == "json":
         output = {
             "total_findings": len(report.findings),
             "blocking_findings": len(blocking_findings),
             "summary": report.summary,
-            "findings": [
-                {
-                    "file": f.file_path,
-                    "line": f.line_number,
-                    "severity": f.severity.name,
-                    "title": f.title,
-                    "owasp": f.owasp_category.value if f.owasp_category else None,
-                    "cwe": f.cwe_id,
-                    "description": f.description,
-                    "remediation": f.remediation
-                }
-                for f in report.findings
-            ]
+            "findings": [f.to_dict() for f in report.findings]
         }
         print(json.dumps(output, indent=2))
-    else:
+    elif args.format == "toon":
+        from rec_praxis_rlm.formatters import format_findings_as_toon
+        print(f"Security Audit Results")
+        print(f"Total: {len(report.findings)}")
+        print(f"Blocking: {len(blocking_findings)}")
+        print(f"\nSummary: {report.summary}\n")
+        print("Findings:")
+        print(format_findings_as_toon(report.findings))
+    else:  # human format
         print(agent.format_report(report))
 
     return 1 if blocking_findings else 0
@@ -189,15 +196,24 @@ def cli_dependency_scan() -> int:
                        help="Fail on this severity or higher")
     parser.add_argument("--json", action="store_true",
                        help="Output JSON for IDE integration")
+    parser.add_argument("--format", default="human",
+                       choices=["human", "json", "toon"],
+                       help="Output format (default: human, toon=40%% token reduction)")
     parser.add_argument("--memory-dir", default=".rec-praxis-rlm",
                        help="Directory for procedural memory storage")
     args = parser.parse_args()
 
+    # Handle legacy --json flag
+    if args.json:
+        args.format = "json"
+
     # Lazy import
     try:
-        from examples.dependency_scan_agent import DependencyScanAgent, Severity
-    except ImportError:
-        print("Error: DependencyScanAgent example not found. Install rec-praxis-rlm[all]")
+        from rec_praxis_rlm.agents import DependencyScanAgent
+        from rec_praxis_rlm.types import Severity
+    except ImportError as e:
+        print(f"Error: Failed to import DependencyScanAgent: {e}")
+        print("Install rec-praxis-rlm[all] and ensure package is installed correctly")
         return 1
 
     # Initialize agent
@@ -243,7 +259,7 @@ def cli_dependency_scan() -> int:
     ]
 
     # Output results
-    if args.json:
+    if args.format == "json":
         output = {
             "total_findings": len(all_findings),
             "blocking_findings": len(blocking_findings),
@@ -251,19 +267,16 @@ def cli_dependency_scan() -> int:
             "secret_count": len(secret_findings),
             "dependencies_scanned": num_dependencies,
             "files_scanned": len(files_content),
-            "findings": [
-                {
-                    "type": "CVE" if hasattr(f, "cve_id") else "Secret",
-                    "severity": f.severity.name,
-                    "title": f.title if hasattr(f, "title") else f.secret_type,
-                    "description": f.description,
-                    "remediation": f.remediation
-                }
-                for f in all_findings
-            ]
+            "findings": [f.to_dict() for f in all_findings]
         }
         print(json.dumps(output, indent=2))
-    else:
+    elif args.format == "toon":
+        from rec_praxis_rlm.formatters import format_dependency_scan_as_toon
+        print(format_dependency_scan_as_toon(
+            len(all_findings), len(cve_findings), len(secret_findings),
+            cve_findings, secret_findings
+        ))
+    else:  # human format
         print(report)
 
     return 1 if blocking_findings else 0

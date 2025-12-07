@@ -158,6 +158,7 @@ class PlannerConfig(BaseModel):
         log_traces_from_compile: If True, log optimizer compilation traces
         optimizer: Optimizer to use (miprov2, simba, grpo, gepa)
         optimizer_auto_level: Optimizer automation level (light, medium, heavy)
+        use_toon_adapter: If True, use TOON format for 40% token reduction (experimental)
     """
 
     lm_model: str = Field(
@@ -195,4 +196,8 @@ class PlannerConfig(BaseModel):
     optimizer_auto_level: Literal["light", "medium", "heavy"] = Field(
         default="medium",
         description="Optimizer automation level",
+    )
+    use_toon_adapter: bool = Field(
+        default=False,
+        description="If True, use TOON format for 40% token reduction (experimental, requires dspy-toon)",
     )

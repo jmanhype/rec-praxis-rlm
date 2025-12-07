@@ -21,9 +21,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install rec-praxis-rlm
+      - name: Install rec-praxis-rlm from source
         run: |
-          pip install rec-praxis-rlm[all]
+          pip install -e .[all]
 
       - name: Run code review
         run: |
@@ -88,9 +88,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install rec-praxis-rlm
+      - name: Install rec-praxis-rlm from source
         run: |
-          pip install rec-praxis-rlm[all]
+          pip install -e .[all]
 
       - name: Run security audit
         run: |
@@ -157,9 +157,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install rec-praxis-rlm
+      - name: Install rec-praxis-rlm from source
         run: |
-          pip install rec-praxis-rlm[all]
+          pip install -e .[all]
 
       - name: Run dependency & secret scan
         run: |
@@ -216,3 +216,78 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
+
+  dogfood-examples:
+    name: Dogfood on Examples
+    runs-on: ubuntu-latest
+    # Run on push to main to demonstrate capabilities (not blocking)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install rec-praxis-rlm from source
+        run: |
+          pip install -e .[all]
+
+      - name: Code Review Examples
+        run: |
+          echo "Running code review on examples/"
+          rec-praxis-review examples/*.py \
+            --severity=MEDIUM \
+            --json > dogfood-code-review.json
+        continue-on-error: true
+
+      - name: Security Audit Examples
+        run: |
+          echo "Running security audit on examples/"
+          rec-praxis-audit examples/*.py \
+            --fail-on=HIGH \
+            --json > dogfood-security-audit.json
+        continue-on-error: true
+
+      - name: Dependency Scan Examples
+        run: |
+          echo "Running dependency scan"
+          if [ -f "requirements.txt" ]; then
+            rec-praxis-deps --requirements=requirements.txt \
+              --files examples/*.py \
+              --fail-on=CRITICAL \
+              --json > dogfood-dependency-scan.json
+          else
+            echo '{"note": "No requirements.txt found"}' > dogfood-dependency-scan.json
+          fi
+        continue-on-error: true
+
+      - name: Upload dogfooding results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dogfood-results
+          path: |
+            dogfood-*.json
+
+      - name: Display dogfooding summary
+        if: always()
+        run: |
+          echo "=== Dogfooding Summary ==="
+          echo ""
+          echo "Code Review Results:"
+          if [ -f dogfood-code-review.json ]; then
+            python -c "import json; data=json.load(open('dogfood-code-review.json')); print(f'  Total findings: {data.get(\"total_findings\", 0)}'); print(f'  Blocking: {data.get(\"blocking_findings\", 0)}')"
+          fi
+          echo ""
+          echo "Security Audit Results:"
+          if [ -f dogfood-security-audit.json ]; then
+            python -c "import json; data=json.load(open('dogfood-security-audit.json')); print(f'  Total findings: {data.get(\"total_findings\", 0)}'); print(f'  Critical: {data.get(\"blocking_findings\", 0)}')"
+          fi
+          echo ""
+          echo "Dependency Scan Results:"
+          if [ -f dogfood-dependency-scan.json ]; then
+            python -c "import json; data=json.load(open('dogfood-dependency-scan.json')); print(f'  CVEs: {data.get(\"cve_count\", 0)}'); print(f'  Secrets: {data.get(\"secret_count\", 0)}')"
+          fi
