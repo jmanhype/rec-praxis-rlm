@@ -6,10 +6,18 @@ A Python package that provides persistent procedural memory and safe code execut
 
 [![PyPI version](https://img.shields.io/pypi/v/rec-praxis-rlm.svg)](https://pypi.org/project/rec-praxis-rlm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Downloads](https://img.shields.io/pypi/dm/rec-praxis-rlm.svg)](https://pypi.org/project/rec-praxis-rlm/)
 [![Tests](https://github.com/jmanhype/rec-praxis-rlm/actions/workflows/test.yml/badge.svg)](https://github.com/jmanhype/rec-praxis-rlm/actions/workflows/test.yml)
 [![Test Coverage](https://img.shields.io/badge/coverage-99.38%25-brightgreen.svg)](https://github.com/jmanhype/rec-praxis-rlm)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Type Checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
+[![Security: Bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Stars](https://img.shields.io/github/stars/jmanhype/rec-praxis-rlm?style=social)](https://github.com/jmanhype/rec-praxis-rlm/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/jmanhype/rec-praxis-rlm?style=social)](https://github.com/jmanhype/rec-praxis-rlm/network/members)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/rec-praxis-rlm)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/jmanhype/rec-praxis-rlm/pulls)
 
 ## Features
 
@@ -733,9 +741,70 @@ See the `examples/` directory for complete examples:
 - `security_audit_agent.py` - OWASP-based security auditing
 - `dependency_scan_agent.py` - CVE detection and secret scanning
 
-## Contributing
+## Community & Contributing
 
-Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+### Contributing Guidelines
+
+We welcome contributions from the community! Here's how you can help:
+
+**Ways to Contribute:**
+- 🐛 Report bugs via [GitHub Issues](https://github.com/jmanhype/rec-praxis-rlm/issues)
+- 💡 Propose features or improvements
+- 📖 Improve documentation
+- 🔧 Submit bug fixes or new features via pull requests
+- ⭐ Star the repository to show support
+- 💬 Join discussions in [GitHub Discussions](https://github.com/jmanhype/rec-praxis-rlm/discussions)
+
+**Development Setup:**
+
+```bash
+# Clone and install in development mode
+git clone https://github.com/jmanhype/rec-praxis-rlm.git
+cd rec-praxis-rlm
+pip install -e .[dev]
+
+# Run tests
+pytest --cov=rec_praxis_rlm
+
+# Run linters
+ruff check .
+black --check .
+mypy rec_praxis_rlm
+
+# Run security audit on your changes
+bandit -r rec_praxis_rlm
+```
+
+**Pull Request Process:**
+
+1. Fork the repository and create a feature branch
+2. Write tests for new functionality
+3. Ensure all tests pass (`pytest`)
+4. Run linters (`ruff`, `black`, `mypy`)
+5. Update documentation as needed
+6. Submit PR with clear description of changes
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+### Code of Conduct
+
+We are committed to providing a welcoming and inclusive environment. Please:
+- Be respectful and considerate
+- Welcome newcomers and help them get started
+- Focus on constructive feedback
+- Report unacceptable behavior to the maintainers
+
+### Getting Help
+
+- 📚 **Documentation**: [GitHub README](https://github.com/jmanhype/rec-praxis-rlm#readme)
+- 💬 **Discord Community**: [Join our Discord](https://discord.gg/rec-praxis-rlm) for real-time chat
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/jmanhype/rec-praxis-rlm/issues)
+- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/jmanhype/rec-praxis-rlm/discussions)
+- 📧 **Email**: jmanhype@users.noreply.github.com (for security issues)
+
+### Recognition
+
+Contributors are recognized in our [CONTRIBUTORS.md](CONTRIBUTORS.md) file. Thank you to all who have helped improve rec-praxis-rlm!
 
 ## License
 
