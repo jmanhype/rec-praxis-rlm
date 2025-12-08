@@ -1,9 +1,10 @@
 theme: jekyll-theme-cayman
-title: Spec Kit
-description: Specification-Driven Development with Beads Integration
+title: rec-praxis-rlm
+description: Procedural Memory + REPL Context for Autonomous AI Agents
 show_downloads: true
 github:
-  repository_url: https://github.com/jmanhype/speckit
+  repository_url: https://github.com/jmanhype/rec-praxis-rlm
   owner_name: jmanhype
   owner_url: https://github.com/jmanhype
   is_project_page: true
+google_analytics: # Add your GA tracking ID if you have one
