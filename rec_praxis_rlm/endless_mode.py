@@ -4,7 +4,7 @@ This module provides token budget tracking, automatic compression, and context
 window management to enable 100+ step agents without context exhaustion.
 
 Features:
-- Token counting and budget tracking
+- Token counting and budget tracking (using tiktoken for accuracy)
 - Automatic context compression when approaching limits
 - Progressive disclosure integration
 - Context window monitoring
@@ -16,7 +16,8 @@ Usage:
     agent = EndlessAgent(
         memory=memory,
         token_budget=100000,
-        compression_threshold=0.4
+        compression_threshold=0.4,
+        model="gpt-4"  # For accurate token counting
     )
 
     # Track tokens used
@@ -33,6 +34,12 @@ Usage:
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, Literal
+
+try:
+    import tiktoken
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
 
 from rec_praxis_rlm.memory import ProceduralMemory, Experience
 
@@ -111,7 +118,7 @@ class EndlessAgent:
     compression to enable long-running agents (100+ steps) without context exhaustion.
 
     Key features:
-    - Token budget tracking with utilization monitoring
+    - Token budget tracking with utilization monitoring (using tiktoken for accuracy)
     - Automatic compression when approaching budget limits
     - Progressive disclosure layer selection based on budget
     - Context compaction triggers
@@ -123,6 +130,7 @@ class EndlessAgent:
         memory: ProceduralMemory,
         token_budget: int = 100000,
         compression_config: Optional[CompressionConfig] = None,
+        model: str = "gpt-4",
     ):
         """Initialize endless mode agent.
 
@@ -130,10 +138,29 @@ class EndlessAgent:
             memory: ProceduralMemory instance
             token_budget: Total token budget for session
             compression_config: Optional compression configuration
+            model: Model name for tiktoken encoding (e.g., "gpt-4", "gpt-3.5-turbo")
         """
         self.memory = memory
         self.budget = TokenBudget(total_budget=token_budget)
         self.config = compression_config or CompressionConfig()
+        self.model = model
+
+        # Initialize tiktoken encoder if available
+        if TIKTOKEN_AVAILABLE:
+            try:
+                self.encoder = tiktoken.encoding_for_model(model)
+                logger.info(f"Initialized tiktoken encoder for model: {model}")
+            except KeyError:
+                logger.warning(
+                    f"Model {model} not found in tiktoken, using cl100k_base encoding"
+                )
+                self.encoder = tiktoken.get_encoding("cl100k_base")
+        else:
+            self.encoder = None
+            logger.warning(
+                "tiktoken not available - using fallback token estimation (±400% error). "
+                "Install tiktoken for accurate token counting: pip install tiktoken"
+            )
 
         logger.info(
             f"Initialized EndlessAgent with {token_budget} token budget, "
@@ -161,6 +188,27 @@ class EndlessAgent:
                 f"Token budget {utilization*100:.1f}% used, "
                 f"consider compression or compaction"
             )
+
+    def estimate_experience_tokens(self, exp: Experience) -> int:
+        """Estimate token count for an experience.
+
+        Uses tiktoken for accurate counting if available, otherwise falls back
+        to a rough heuristic (~1000 tokens per experience).
+
+        Args:
+            exp: Experience to estimate tokens for
+
+        Returns:
+            Estimated token count
+        """
+        if self.encoder is not None:
+            # Accurate token counting with tiktoken
+            # Concatenate the main fields that would be included in a prompt
+            text = f"{' '.join(exp.env_features)} {exp.goal} {exp.action} {exp.result}"
+            return len(self.encoder.encode(text))
+        else:
+            # Fallback: rough heuristic (±400% error)
+            return 1000
 
     def should_compress(self) -> bool:
         """Check if automatic compression should be triggered.
@@ -205,7 +253,8 @@ class EndlessAgent:
         """Automatically compress context to reduce token usage.
 
         This compacts memory by removing old experiences, targeting the
-        configured target utilization rate.
+        configured target utilization rate. Uses tiktoken for accurate
+        token counting if available.
 
         Returns:
             Dictionary with compression statistics
@@ -227,17 +276,43 @@ class EndlessAgent:
             f"(target utilization: {self.config.target_rate*100:.1f}%)"
         )
 
+        # Get experiences that will be removed for accurate token counting
+        all_experiences = self.memory.experiences
+        if keep_n >= len(all_experiences):
+            # Nothing to remove
+            return {
+                "compressed": False,
+                "reason": "Cannot compress further without violating min_experiences",
+                "utilization_before": self.budget.utilization_rate,
+            }
+
+        # Sort by timestamp (oldest first) and get experiences to remove
+        sorted_experiences = sorted(all_experiences, key=lambda e: e.timestamp)
+        experiences_to_remove = sorted_experiences[:-keep_n] if keep_n > 0 else sorted_experiences
+
+        # Calculate actual token savings using tiktoken if available
+        if self.encoder is not None:
+            actual_tokens_saved = sum(
+                self.estimate_experience_tokens(exp) for exp in experiences_to_remove
+            )
+            logger.info(
+                f"Calculated actual token savings using tiktoken: {actual_tokens_saved} tokens"
+            )
+        else:
+            # Fallback: rough heuristic
+            actual_tokens_saved = len(experiences_to_remove) * 1000
+            logger.warning(
+                f"Using fallback token estimation: {actual_tokens_saved} tokens (±400% error)"
+            )
+
         # Compact memory
         removed = self.memory.compact(keep_recent_n=keep_n)
-
-        # Estimate token savings (rough heuristic: ~1000 tokens per experience)
-        estimated_tokens_saved = removed * 1000
 
         # Update budget (reduce used tokens)
         old_utilization = self.budget.utilization_rate
         self.budget.used_tokens = max(
             0,
-            self.budget.used_tokens - estimated_tokens_saved
+            self.budget.used_tokens - actual_tokens_saved
         )
         new_utilization = self.budget.utilization_rate
 
@@ -245,7 +320,7 @@ class EndlessAgent:
 
         logger.info(
             f"Compression complete: removed {removed} experiences, "
-            f"saved ~{estimated_tokens_saved} tokens, "
+            f"saved {actual_tokens_saved} tokens, "
             f"utilization {old_utilization*100:.1f}% -> {new_utilization*100:.1f}%"
         )
 
@@ -253,7 +328,7 @@ class EndlessAgent:
             "compressed": True,
             "experiences_removed": removed,
             "experiences_kept": keep_n,
-            "estimated_tokens_saved": estimated_tokens_saved,
+            "estimated_tokens_saved": actual_tokens_saved,
             "utilization_before": old_utilization,
             "utilization_after": new_utilization,
             "compression_events": self.budget.compression_events,

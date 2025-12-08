@@ -1,12 +1,12 @@
 # Endless Mode for Long-Running Agents
 
-Enable 100+ step agents without context exhaustion using automatic compression pipeline and token budget tracking.
+Enable 100+ step agents without context exhaustion using automatic compression pipeline and accurate token budget tracking with tiktoken.
 
 ![Endless Mode](https://img.shields.io/badge/Feature-Endless_Mode-9C27B0?style=for-the-badge)
 
 ## Overview
 
-Endless Mode solves the **context window exhaustion problem** for long-running autonomous agents. By automatically tracking token usage, compressing context, and managing memory size, agents can run indefinitely without hitting context limits.
+Endless Mode solves the **context window exhaustion problem** for long-running autonomous agents. By automatically tracking token usage with tiktoken, compressing context, and managing memory size, agents can run indefinitely without hitting context limits.
 
 ### The Problem
 
@@ -41,10 +41,11 @@ from rec_praxis_rlm import ProceduralMemory, MemoryConfig, EndlessAgent
 config = MemoryConfig(storage_path="./memory.jsonl")
 memory = ProceduralMemory(config=config)
 
-# Create endless mode agent
+# Create endless mode agent with tiktoken for accurate token counting
 agent = EndlessAgent(
     memory=memory,
     token_budget=100000,  # Claude Opus 3.5 context window
+    model="gpt-4",  # For tiktoken encoding (gpt-4, gpt-3.5-turbo, claude, etc.)
 )
 
 # Your agent loop
@@ -81,6 +82,7 @@ agent = EndlessAgent(
     memory=memory,
     token_budget=100000,
     compression_config=config,
+    model="gpt-4",  # For accurate token counting with tiktoken
 )
 
 # Adaptive recall - automatically selects best layer
@@ -136,7 +138,7 @@ if agent.should_compress():
 1. Trigger at configurable threshold (default: 40% utilization)
 2. Keep only recent experiences (sorted by timestamp)
 3. Target lower utilization rate (default: 20%)
-4. Estimate token savings (~1000 tokens per experience removed)
+4. Calculate actual token savings using tiktoken (or fallback to ~1000 tokens per experience)
 
 ### 3. Progressive Disclosure Integration
 
@@ -482,15 +484,25 @@ Set your budget to match or slightly below the context window.
 
 ### Q: How accurate is the token estimation?
 
-**A:** Token estimation uses a rough heuristic (~1000 tokens per experience). For precise tracking, integrate with your LLM's token counter:
+**A:** EndlessAgent now uses **tiktoken** for accurate token counting by default! Simply specify the model when creating the agent:
 
 ```python
-# Example with OpenAI
-import tiktoken
+# Accurate token counting with tiktoken (recommended)
+agent = EndlessAgent(
+    memory=memory,
+    token_budget=100000,
+    model="gpt-4"  # tiktoken will use the correct encoding
+)
 
-encoder = tiktoken.encoding_for_model("gpt-4")
-prompt_tokens = len(encoder.encode(prompt_text))
-agent.track_tokens(prompt_tokens=prompt_tokens)
+# Token savings are calculated automatically using tiktoken
+result = agent.auto_compress_context()
+print(f"Saved {result['estimated_tokens_saved']} tokens")  # Accurate!
+```
+
+If tiktoken is not installed, it falls back to a rough heuristic (~1000 tokens per experience, ±400% error). Install tiktoken for production use:
+
+```bash
+pip install tiktoken
 ```
 
 ### Q: Can I use this without compression?

@@ -1344,8 +1344,8 @@ class TestStorageVersionMigration:
                 assert memory.size() == 1
 
                 # Should have logged migration
-                mock_logger.info.assert_any_call("Migrating storage from version 0.0 to 1.0")
-                mock_logger.info.assert_any_call("Migrating from legacy format (0.0) to 1.0")
+                mock_logger.info.assert_any_call("Migrating storage from version 0.0 to 2.0")
+                mock_logger.info.assert_any_call("Migrating from 0.0 to 2.0 (adding checksums)")
 
     def test_unsupported_future_version_raises_error(self) -> None:
         """Test that unsupported future versions raise StorageError."""

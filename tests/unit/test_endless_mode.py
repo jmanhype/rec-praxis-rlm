@@ -379,3 +379,147 @@ def test_endless_mode_100_step_simulation(memory):
 
     status = agent.get_status()
     assert status["compression"]["compression_events"] > 0
+
+
+def test_tiktoken_integration(memory):
+    """Test tiktoken integration for accurate token counting."""
+    agent = EndlessAgent(
+        memory=memory,
+        token_budget=10000,
+        model="gpt-4",
+    )
+
+    # Check encoder is initialized
+    assert agent.encoder is not None
+    assert agent.model == "gpt-4"
+
+    # Create test experience
+    exp = Experience(
+        env_features=["python", "testing"],
+        goal="Write comprehensive unit tests",
+        action="Implemented pytest fixtures",
+        result="All tests passing with 95% coverage",
+        success=True,
+        timestamp=time.time(),
+    )
+
+    # Estimate tokens
+    token_count = agent.estimate_experience_tokens(exp)
+
+    # Should be more accurate than 1000 token heuristic
+    assert token_count > 0
+    assert token_count < 500  # This simple experience should be < 500 tokens
+
+
+def test_tiktoken_fallback_model(memory):
+    """Test tiktoken falls back to cl100k_base for unknown models."""
+    agent = EndlessAgent(
+        memory=memory,
+        token_budget=10000,
+        model="unknown-model-xyz",
+    )
+
+    # Should still have encoder (fallback to cl100k_base)
+    assert agent.encoder is not None
+
+    # Should still be able to estimate tokens
+    exp = Experience(
+        env_features=["test"],
+        goal="Test goal",
+        action="Test action",
+        result="Test result",
+        success=True,
+        timestamp=time.time(),
+    )
+    token_count = agent.estimate_experience_tokens(exp)
+    assert token_count > 0
+
+
+def test_auto_compress_with_tiktoken(memory):
+    """Test auto-compression uses tiktoken for accurate token savings."""
+    agent = EndlessAgent(
+        memory=memory,
+        token_budget=10000,
+        model="gpt-4",
+        compression_config=CompressionConfig(
+            threshold=0.4,
+            target_rate=0.2,
+            min_experiences=5,
+        )
+    )
+
+    # Add experiences
+    for i in range(20):
+        exp = Experience(
+            env_features=["test", "python"],
+            goal=f"Implement feature {i}",
+            action=f"Added module {i} with tests",
+            result=f"Feature {i} completed successfully",
+            success=True,
+            timestamp=time.time() + i,
+        )
+        memory.store(exp)
+
+    # Trigger compression
+    agent.track_tokens(prompt_tokens=3000, completion_tokens=1500)
+    result = agent.auto_compress_context()
+
+    # Check compression happened
+    assert result["compressed"]
+    assert result["experiences_removed"] > 0
+
+    # Token savings should be calculated using tiktoken (not fixed 1000)
+    # For 10+ experiences with similar content, should be in reasonable range
+    tokens_per_exp = result["estimated_tokens_saved"] / result["experiences_removed"]
+    # These short experiences have ~15-25 tokens each (much more accurate than 1000!)
+    assert 10 < tokens_per_exp < 50  # More accurate than 1000 token heuristic
+
+
+def test_compression_with_varied_experience_sizes(memory):
+    """Test tiktoken accurately handles experiences of different sizes."""
+    agent = EndlessAgent(
+        memory=memory,
+        token_budget=10000,
+        model="gpt-4",
+        compression_config=CompressionConfig(
+            threshold=0.4,
+            target_rate=0.2,
+            min_experiences=5,
+        )
+    )
+
+    # Add small experiences
+    for i in range(10):
+        exp = Experience(
+            env_features=["test"],
+            goal=f"Goal {i}",
+            action=f"Action {i}",
+            result=f"Result {i}",
+            success=True,
+            timestamp=time.time() + i,
+        )
+        memory.store(exp)
+
+    # Add large experiences with verbose content
+    for i in range(10, 20):
+        exp = Experience(
+            env_features=["test", "integration", "database", "api"],
+            goal=f"Implement comprehensive integration test suite for feature {i} "
+                 f"covering all edge cases and error scenarios",
+            action=f"Created detailed test plan and implemented 50+ test cases for module {i} "
+                   f"including unit tests, integration tests, and end-to-end tests",
+            result=f"Successfully validated feature {i} with 100% code coverage, "
+                   f"all edge cases handled, performance benchmarks met, and documentation updated",
+            success=True,
+            timestamp=time.time() + i,
+        )
+        memory.store(exp)
+
+    # Trigger compression
+    agent.track_tokens(prompt_tokens=3000, completion_tokens=1500)
+    result = agent.auto_compress_context()
+
+    # Should compress successfully
+    assert result["compressed"]
+    # Token savings should reflect actual content size differences
+    assert result["estimated_tokens_saved"] > 0

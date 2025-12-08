@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from rec_praxis_rlm.config import MemoryConfig
 from rec_praxis_rlm.embeddings import SentenceTransformerEmbedding, EmbeddingProvider
@@ -58,7 +58,10 @@ class Experience(BaseModel):
         experience_type: Experience classification (learn/recover/optimize/explore)
     """
 
-    model_config = {"strict": False}  # Allow extra fields for forward compatibility
+    model_config = ConfigDict(
+        strict=True,  # Strict type validation (no coercion of "yes" -> True)
+        extra="ignore",  # Ignore extra fields in JSON (forward compat)
+    )
 
     env_features: list[str] = Field(
         ...,
@@ -231,6 +234,9 @@ class ProceduralMemory:
             if not lines:
                 return
 
+            # Default to legacy format (no version marker)
+            file_version = "0.0"
+
             # Check for version marker in first line
             first_line = lines[0].strip()
             if first_line and first_line.startswith('{"__version__"'):
@@ -242,6 +248,7 @@ class ProceduralMemory:
                     # Migrate if needed
                     if file_version != STORAGE_VERSION:
                         lines = self._migrate_storage(file_version, lines[1:])
+                        file_version = STORAGE_VERSION  # Update version after migration
                     else:
                         lines = lines[1:]  # Skip version marker
                 except json.JSONDecodeError:
