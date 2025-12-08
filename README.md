@@ -22,6 +22,7 @@ A Python package that provides persistent procedural memory and safe code execut
 
 ### Developer Tools (v0.4.0+)
 - **CLI Tools**: Code review, security audit, dependency scanning from command line
+- **Claude Code Hooks**: Automatic experience capture after every tool use (zero-config)
 - **Pre-commit Hooks**: Automated quality checks before every git commit
 - **VS Code Extension**: Real-time inline diagnostics with procedural memory
 - **GitHub Actions**: CI/CD workflows for automated security scanning
@@ -174,6 +175,41 @@ config = MemoryConfig.for_web_scraping()
 config = MemoryConfig.for_testing()
 ```
 
+## Claude Code Hooks (Automatic Experience Capture)
+
+**Zero-config automatic learning** - rec-praxis-rlm integrates with Claude Code to automatically capture every tool use as an experience:
+
+```bash
+# Already set up in .claude/settings.json!
+# Every Bash command, file read/write, grep, etc. is automatically captured
+```
+
+**Features**:
+- **post_tool_use hook**: Captures tool name, input, output, success status
+- **session_start hook**: Shows recent successes/failures at session start
+- **Privacy-aware**: Automatically redacts API keys, passwords, emails
+- **Local storage**: All data stays in `.claude/memory.jsonl` on your machine
+
+**Example session start:**
+```
+📚 REC Praxis RLM Context
+
+Memory Statistics:
+- Total experiences: 127
+- Recent successful patterns: 5
+- Recent failures to avoid: 2
+
+Recent Successful Patterns:
+1. [optimize] Refactor database query for better performance
+   ✓ Query latency reduced from 2s to 50ms
+
+Recent Failures (Learn from these):
+1. [recover] Fix test failures in test_privacy.py
+   ✗ Still failing - need to adjust pattern length
+```
+
+See [.claude/README.md](https://github.com/jmanhype/rec-praxis-rlm/blob/main/.claude/README.md) for full documentation.
+
 ## Pre-commit Hooks
 
 Automatically review code before every commit:
@@ -197,7 +233,39 @@ git commit -m "feat: add new feature"  # Hooks run automatically
 
 ## GitHub Actions
 
-Scan pull requests automatically:
+### Option 1: Use the Official GitHub Action (Recommended)
+
+Zero-config security scanning with the [rec-praxis-action](https://github.com/jmanhype/rec-praxis-action):
+
+```yaml
+# .github/workflows/security-scan.yml
+name: Security Scan
+on: [push, pull_request]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run rec-praxis-rlm Security Scanner
+        uses: jmanhype/rec-praxis-action@v1
+        with:
+          scan-type: 'all'          # review, audit, deps, or all
+          severity: 'HIGH'           # Minimum severity to report
+          fail-on: 'CRITICAL'        # Fail build on CRITICAL issues
+          incremental: 'true'        # Only scan changed files in PRs
+```
+
+**Features**:
+- Incremental scanning (only changed files)
+- Procedural memory across runs
+- SARIF output for GitHub Security tab
+- Multi-language support (Python + JavaScript/TypeScript)
+
+See [rec-praxis-action](https://github.com/jmanhype/rec-praxis-action) for full documentation.
+
+### Option 2: Manual CLI Integration
 
 ```yaml
 # .github/workflows/security-scan.yml
@@ -219,18 +287,28 @@ jobs:
 
 ## VS Code Extension
 
-Install "rec-praxis-rlm Code Intelligence" from VS Code Marketplace:
+**Installation**:
+
+1. Download [rec-praxis-rlm-vscode-0.4.2.vsix](https://github.com/jmanhype/rec-praxis-rlm/raw/main/vscode-extension/rec-praxis-rlm-vscode-0.4.2.vsix)
+2. In VS Code: Extensions → ⋯ → Install from VSIX
+3. Select the downloaded `.vsix` file
 
 **Features**:
 - Inline diagnostics as you type
 - Right-click to review/audit current file
 - Auto-review on save (configurable)
 - Dependency scanning for `requirements.txt`
+- Procedural memory integration (learns from fixes)
 
-**Installation**:
-1. Open Extensions (Ctrl+Shift+X / Cmd+Shift+X)
-2. Search for "rec-praxis-rlm"
-3. Click Install
+**Settings** (F1 → "Preferences: Open Settings (JSON)"):
+```json
+{
+  "rec-praxis-rlm.pythonPath": "python",
+  "rec-praxis-rlm.codeReview.severity": "HIGH",
+  "rec-praxis-rlm.enableDiagnostics": true,
+  "rec-praxis-rlm.autoReviewOnSave": false
+}
+```
 
 ## Interactive HTML Reports (v0.4.4+)
 
