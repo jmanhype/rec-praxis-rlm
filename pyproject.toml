@@ -66,6 +66,7 @@ dev = [
     "hypothesis>=6.0",
     "datasets>=2.0",
     "ragas>=0.1",
+    "faiss-cpu>=1.7",
 ]
 
 [project.scripts]
