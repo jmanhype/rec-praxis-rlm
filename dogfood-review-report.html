@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rec-praxis-rlm Security Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .severity-critical { background-color: #dc2626; color: white; }
+        .severity-high { background-color: #ea580c; color: white; }
+        .severity-medium { background-color: #f59e0b; color: white; }
+        .severity-low { background-color: #eab308; color: white; }
+        .severity-info { background-color: #3b82f6; color: white; }
+        @media print {
+            .no-print { display: none; }
+            .print-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 shadow-lg">
+        <div class="container mx-auto">
+            <h1 class="text-3xl font-bold">🛡️ rec-praxis-rlm Security Report</h1>
+            <p class="text-blue-100 mt-2">Generated on 2025-12-08 01:00:38 UTC</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-gray-500 text-sm font-semibold uppercase">Total Findings</div>
+                <div class="text-4xl font-bold text-gray-900 mt-2">5</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-gray-500 text-sm font-semibold uppercase">Critical</div>
+                <div class="text-4xl font-bold text-red-600 mt-2">3</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-gray-500 text-sm font-semibold uppercase">High</div>
+                <div class="text-4xl font-bold text-orange-600 mt-2">0</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="text-gray-500 text-sm font-semibold uppercase">Medium/Low</div>
+                <div class="text-4xl font-bold text-yellow-600 mt-2">2</div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Severity Distribution -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">Severity Distribution</h2>
+                <canvas id="severityChart"></canvas>
+            </div>
+
+            <!-- OWASP Category Breakdown -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">OWASP Top 10 Breakdown</h2>
+                <canvas id="owaspChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Findings Table -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Detailed Findings</h2>
+                <div class="mt-4 flex gap-2 no-print">
+                    <button onclick="filterTable('all')" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">All</button>
+                    <button onclick="filterTable('CRITICAL')" class="px-4 py-2 severity-critical rounded hover:opacity-80">Critical</button>
+                    <button onclick="filterTable('HIGH')" class="px-4 py-2 severity-high rounded hover:opacity-80">High</button>
+                    <button onclick="filterTable('MEDIUM')" class="px-4 py-2 severity-medium rounded hover:opacity-80">Medium</button>
+                    <button onclick="filterTable('LOW')" class="px-4 py-2 severity-low rounded hover:opacity-80">Low</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table id="findingsTable" class="w-full">
+                    <thead class="bg-gray-100 border-b border-gray-200">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Severity</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Title</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">File</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Line</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Category</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        
+        <tr data-severity="LOW">
+            <td class="px-6 py-4">
+                <span class="px-3 py-1 text-xs font-semibold rounded severity-low">
+                    LOW
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <div class="font-semibold text-gray-900">Excessive Debug Print Statements</div>
+                <div class="text-sm text-gray-600 mt-1">Found 100 print() statements - consider using logging</div>
+                
+                <details class="mt-2">
+                    <summary class="text-sm text-blue-600 cursor-pointer hover:underline">Remediation</summary>
+                    <div class="text-sm text-gray-700 mt-1 pl-4">Use logging module: logger.info('message') instead of print()</div>
+                </details>
+            </td>
+            <td class="px-6 py-4 text-sm font-mono text-gray-700">rec_praxis_rlm/cli.py</td>
+            <td class="px-6 py-4 text-sm text-gray-600">512</td>
+            <td class="px-6 py-4 text-sm text-gray-600">N/A</td>
+        </tr>
+        
+        <tr data-severity="LOW">
+            <td class="px-6 py-4">
+                <span class="px-3 py-1 text-xs font-semibold rounded severity-low">
+                    LOW
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <div class="font-semibold text-gray-900">Excessive Debug Print Statements</div>
+                <div class="text-sm text-gray-600 mt-1">Found 7 print() statements - consider using logging</div>
+                
+                <details class="mt-2">
+                    <summary class="text-sm text-blue-600 cursor-pointer hover:underline">Remediation</summary>
+                    <div class="text-sm text-gray-700 mt-1 pl-4">Use logging module: logger.info('message') instead of print()</div>
+                </details>
+            </td>
+            <td class="px-6 py-4 text-sm font-mono text-gray-700">rec_praxis_rlm/web_viewer.py</td>
+            <td class="px-6 py-4 text-sm text-gray-600">483</td>
+            <td class="px-6 py-4 text-sm text-gray-600">N/A</td>
+        </tr>
+        
+        <tr data-severity="CRITICAL">
+            <td class="px-6 py-4">
+                <span class="px-3 py-1 text-xs font-semibold rounded severity-critical">
+                    CRITICAL
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <div class="font-semibold text-gray-900">Dangerous Code Execution</div>
+                <div class="text-sm text-gray-600 mt-1">eval() or exec() enables arbitrary code execution</div>
+                
+                <details class="mt-2">
+                    <summary class="text-sm text-blue-600 cursor-pointer hover:underline">Remediation</summary>
+                    <div class="text-sm text-gray-700 mt-1 pl-4">Avoid eval/exec. Use safer alternatives like ast.literal_eval() for data or explicit function dispatch</div>
+                </details>
+            </td>
+            <td class="px-6 py-4 text-sm font-mono text-gray-700">rec_praxis_rlm/sandbox.py</td>
+            <td class="px-6 py-4 text-sm text-gray-600">190</td>
+            <td class="px-6 py-4 text-sm text-gray-600">N/A</td>
+        </tr>
+        
+        <tr data-severity="CRITICAL">
+            <td class="px-6 py-4">
+                <span class="px-3 py-1 text-xs font-semibold rounded severity-critical">
+                    CRITICAL
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <div class="font-semibold text-gray-900">Dangerous Code Execution</div>
+                <div class="text-sm text-gray-600 mt-1">eval() or exec() enables arbitrary code execution</div>
+                
+                <details class="mt-2">
+                    <summary class="text-sm text-blue-600 cursor-pointer hover:underline">Remediation</summary>
+                    <div class="text-sm text-gray-700 mt-1 pl-4">Avoid eval/exec. Use safer alternatives like ast.literal_eval() for data or explicit function dispatch</div>
+                </details>
+            </td>
+            <td class="px-6 py-4 text-sm font-mono text-gray-700">rec_praxis_rlm/sandbox.py</td>
+            <td class="px-6 py-4 text-sm text-gray-600">196</td>
+            <td class="px-6 py-4 text-sm text-gray-600">N/A</td>
+        </tr>
+        
+        <tr data-severity="CRITICAL">
+            <td class="px-6 py-4">
+                <span class="px-3 py-1 text-xs font-semibold rounded severity-critical">
+                    CRITICAL
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <div class="font-semibold text-gray-900">Dangerous Code Execution</div>
+                <div class="text-sm text-gray-600 mt-1">eval() or exec() enables arbitrary code execution</div>
+                
+                <details class="mt-2">
+                    <summary class="text-sm text-blue-600 cursor-pointer hover:underline">Remediation</summary>
+                    <div class="text-sm text-gray-700 mt-1 pl-4">Avoid eval/exec. Use safer alternatives like ast.literal_eval() for data or explicit function dispatch</div>
+                </details>
+            </td>
+            <td class="px-6 py-4 text-sm font-mono text-gray-700">rec_praxis_rlm/sandbox.py</td>
+            <td class="px-6 py-4 text-sm text-gray-600">211</td>
+            <td class="px-6 py-4 text-sm text-gray-600">N/A</td>
+        </tr>
+        
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CVE Findings (if any) -->
+        
+
+        <!-- Footer -->
+        <footer class="mt-12 text-center text-gray-500 text-sm">
+            <p>Generated by <a href="https://github.com/jmanhype/rec-praxis-rlm" class="text-blue-600 hover:underline">rec-praxis-rlm</a> v0.9.1</p>
+            <p class="mt-2 no-print">
+                <button onclick="window.print()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    🖨️ Print / Save as PDF
+                </button>
+            </p>
+        </footer>
+    </main>
+
+    <script>
+        // Severity Distribution Chart
+        const severityCtx = document.getElementById('severityChart').getContext('2d');
+        new Chart(severityCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"],
+                datasets: [{
+                    data: [3, 0, 0, 2, 0],
+                    backgroundColor: ['#dc2626', '#ea580c', '#f59e0b', '#eab308', '#3b82f6'],
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // OWASP Category Chart
+        const owaspCtx = document.getElementById('owaspChart').getContext('2d');
+        new Chart(owaspCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Findings',
+                    data: [],
+                    backgroundColor: '#6366f1',
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // Table Filtering
+        function filterTable(severity) {
+            const table = document.getElementById('findingsTable');
+            const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+
+            for (let row of rows) {
+                const severityCell = row.cells[0].textContent.trim();
+                if (severity === 'all' || severityCell === severity) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
