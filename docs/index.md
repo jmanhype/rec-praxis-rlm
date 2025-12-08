@@ -65,9 +65,9 @@ rec-praxis-audit app.py --fail-on=CRITICAL
 ## Documentation
 
 ### Getting Started
-- [Installation & Quick Start](https://github.com/jmanhype/rec-praxis-rlm#quick-start)
+- [Getting Started Guide](getting-started.html) - Installation, basic usage, common issues
 - [Examples](examples/README.html) - Practical code examples
-- [CLI Tools](https://github.com/jmanhype/rec-praxis-rlm#cli-tools)
+- [CLI Reference](cli-reference.html) - Complete CLI tools documentation
 
 ### Core Features
 - [Procedural Memory](api_reference.html#procedural-memory) - Experience storage and recall
@@ -76,14 +76,14 @@ rec-praxis-audit app.py --fail-on=CRITICAL
 - [Web Viewer](web_viewer.html) - Interactive memory inspection
 
 ### Integrations
+- [Integrations Guide](integrations.html) - Claude Code, GitHub Actions, VS Code, pre-commit
 - [Claude Code Hooks](https://github.com/jmanhype/rec-praxis-rlm/blob/main/.claude/README.md) - Automatic experience capture
-- [GitHub Actions](https://github.com/jmanhype/rec-praxis-action) - CI/CD integration
-- [VS Code Extension](https://github.com/jmanhype/rec-praxis-rlm/tree/main/vscode-extension)
-- [Pre-commit Hooks](https://github.com/jmanhype/rec-praxis-rlm#pre-commit-hooks)
+- [GitHub Actions](https://github.com/jmanhype/rec-praxis-action) - Official rec-praxis-action
 
 ### Advanced
 - [API Reference](api_reference.html) - Complete API documentation
 - [Architecture](architecture.html) - System design and data flow
+- [Contributing](contributing.html) - Development guide and pull request process
 - [Testing](https://github.com/jmanhype/rec-praxis-rlm/blob/main/tests/README.md) - Test structure and coverage
 
 ---

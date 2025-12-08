@@ -6,14 +6,17 @@ Comprehensive documentation for rec-praxis-rlm.
 
 | Document | Description |
 |----------|-------------|
+| [Getting Started](getting-started.md) | Installation, basic usage, configuration |
 | [API Reference](api_reference.md) | Complete API documentation for all classes and functions |
 | [Architecture](architecture.md) | System architecture, design decisions, and data flow |
-| [Endless Mode](endless_mode.md) | EndlessAgent for long-running autonomous tasks |
-| [Web Viewer](web_viewer.md) | Web UI for procedural memory inspection |
+| [CLI Reference](cli-reference.md) | Command-line tools documentation |
+| [Integrations](integrations.md) | Claude Code, GitHub Actions, VS Code, pre-commit |
+| [Contributing](contributing.md) | Development setup, testing, pull request process |
 
-## Guides
+## User Guides
 
 ### Getting Started
+- [Getting Started Guide](getting-started.md) - Installation, first steps, common issues
 - [Main README](../README.md) - Quick start, installation, basic examples
 - [Examples](../examples/README.md) - Practical code examples
 - [Configuration](api_reference.md#configuration) - MemoryConfig, ReplConfig, PlannerConfig presets
@@ -24,9 +27,9 @@ Comprehensive documentation for rec-praxis-rlm.
 - [Claude Code Hooks](../.claude/README.md) - Automatic experience capture integration
 
 ### Developer Tools
-- [CLI Tools](../README.md#cli-tools) - rec-praxis-review, rec-praxis-audit, rec-praxis-deps
-- [Pre-commit Hooks](../README.md#pre-commit-hooks) - Automated code quality checks
-- [GitHub Actions](https://github.com/jmanhype/rec-praxis-action) - CI/CD integration
+- [CLI Reference](cli-reference.md) - Complete CLI tools documentation
+- [Integrations](integrations.md) - Claude Code, GitHub Actions, VS Code, pre-commit hooks
+- [GitHub Actions](https://github.com/jmanhype/rec-praxis-action) - Official GitHub Action
 - [VS Code Extension](../vscode-extension/README.md) - IDE integration
 
 ## Evaluations
@@ -84,11 +87,12 @@ See [../tests/README.md](../tests/README.md) for:
 
 ## Contributing
 
-See [../CONTRIBUTING.md](../CONTRIBUTING.md) for:
+See [contributing.md](contributing.md) for:
 - Development setup
 - Code style guidelines
 - Pull request process
 - Testing requirements
+- Release process
 
 ## Support
 
