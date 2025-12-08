@@ -37,6 +37,11 @@ from rec_praxis_rlm.privacy import (
 )
 from rec_praxis_rlm.concepts import ConceptTagger
 from rec_praxis_rlm.experience_classifier import ExperienceClassifier
+from rec_praxis_rlm.endless_mode import (
+    EndlessAgent,
+    TokenBudget,
+    CompressionConfig,
+)
 
 __all__ = [
     # Version
@@ -81,4 +86,8 @@ __all__ = [
     "ConceptTagger",
     # Experience Classification
     "ExperienceClassifier",
+    # Endless Mode
+    "EndlessAgent",
+    "TokenBudget",
+    "CompressionConfig",
 ]
