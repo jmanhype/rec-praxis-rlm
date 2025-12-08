@@ -1,11 +1,11 @@
-# Dogfooding rec-praxis-rlm
+# Self-Validation: rec-praxis-rlm
 
-This document demonstrates how rec-praxis-rlm dogfoods its own tools to ensure quality and validate that developers can use the features effectively.
+This document demonstrates how rec-praxis-rlm validates its own code quality using its integrated tools, ensuring reliability and providing developers with confidence in the tooling.
 
-## 🐶 What We're Dogfooding
+## 🔍 Integrated Quality Assurance
 
-| Feature | Status | How We Use It |
-|---------|--------|---------------|
+| Feature | Status | Implementation |
+|---------|--------|----------------|
 | **rec-praxis-review** | ✅ Active | Pre-commit hook + GitHub Actions on every PR |
 | **rec-praxis-audit** | ✅ Active | GitHub Actions security scanning |
 | **rec-praxis-deps** | ✅ Active | Dependency + secret scanning on CI/CD |
@@ -13,17 +13,17 @@ This document demonstrates how rec-praxis-rlm dogfoods its own tools to ensure q
 | **GitHub Actions** | ✅ Active | `.github/workflows/rec-praxis-scan.yml` |
 | **Procedural Memory** | ✅ Active | Stored in `.rec-praxis-rlm/code_review_memory.jsonl` |
 | **Web Viewer** | ✅ Active | `python -m rec_praxis_rlm.web_viewer` |
-| **EndlessAgent** | 🔄 In Progress | Using for development sessions |
+| **EndlessAgent** | 🔄 In Progress | Development session management with tiktoken |
 | **HTML Reports** | ✅ Active | Interactive reports with charts |
 | **TOON Format** | ✅ Active | 40% token reduction demonstrated in CI/CD |
-| **MLflow Tracking** | ⏳ Pending | Next milestone |
-| **VS Code Extension** | ⏳ Pending | Next milestone |
+| **MLflow Tracking** | ⏳ Planned | Next milestone |
+| **VS Code Extension** | ⏳ Planned | Next milestone |
 
-## 📊 Dogfooding Results (Current Session)
+## 📊 Validation Results (Current Build)
 
 ### Code Review Findings
 
-Ran `rec-praxis-review rec_praxis_rlm/*.py --severity=MEDIUM --format=json`:
+Command: `rec-praxis-review rec_praxis_rlm/*.py --severity=MEDIUM --format=json`
 
 ```json
 {
@@ -72,7 +72,7 @@ Ran `rec-praxis-review rec_praxis_rlm/*.py --severity=MEDIUM --format=json`:
 
 ### Security Audit
 
-Ran `rec-praxis-audit rec_praxis_rlm/sandbox.py --format=json`:
+Command: `rec-praxis-audit rec_praxis_rlm/sandbox.py --format=json`
 
 ```json
 {
@@ -86,7 +86,7 @@ Ran `rec-praxis-audit rec_praxis_rlm/sandbox.py --format=json`:
 
 ### Dependency Scan
 
-Ran `rec-praxis-deps --requirements=pyproject.toml --files rec_praxis_rlm/*.py`:
+Command: `rec-praxis-deps --requirements=pyproject.toml --files rec_praxis_rlm/*.py`
 
 ```json
 {
@@ -101,17 +101,15 @@ Ran `rec-praxis-deps --requirements=pyproject.toml --files rec_praxis_rlm/*.py`:
 
 **Analysis**: ✅ No CVEs or secrets detected. Dependencies are clean.
 
-## 🔧 Developer Setup
-
-To dogfood rec-praxis-rlm in your own development:
+## 🔧 Developer Integration Guide
 
 ### 1. Pre-commit Hook (Automatic)
 
-The pre-commit hook at `.git/hooks/pre-commit` automatically runs:
+The pre-commit hook at `.git/hooks/pre-commit` automatically validates staged files:
 
 ```bash
 #!/bin/sh
-# Dogfooding: Run rec-praxis-review on staged Python files
+# Self-validation: Run rec-praxis-review on staged Python files
 STAGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
 
 if [ -n "$STAGED_PY_FILES" ]; then
@@ -167,8 +165,8 @@ rec-praxis-deps --requirements=pyproject.toml --files rec_praxis_rlm/*.py --json
 The workflow `.github/workflows/rec-praxis-scan.yml` runs on every PR and push:
 
 ```yaml
-dogfood-production:
-  name: Dogfood on Production Code
+production-validation:
+  name: Validate Production Code
   runs-on: ubuntu-latest
 
   steps:
@@ -176,19 +174,19 @@ dogfood-production:
       run: |
         rec-praxis-review rec_praxis_rlm/**/*.py \
           --severity=MEDIUM \
-          --format=json > dogfood-production-review.json
+          --format=json > production-review.json
 
     - name: Code Review Production Code (TOON format)
       run: |
         rec-praxis-review rec_praxis_rlm/**/*.py \
           --severity=MEDIUM \
-          --format=toon > dogfood-production-review-toon.txt
+          --format=toon > production-review-toon.txt
 
     - name: Security Audit Production Code
       run: |
         rec-praxis-audit rec_praxis_rlm/**/*.py \
           --fail-on=HIGH \
-          --format=json > dogfood-production-audit.json
+          --format=json > production-audit.json
 ```
 
 ## 📈 Metrics
@@ -220,15 +218,15 @@ With tiktoken integration:
 - **Before**: ±400% error (1000 token heuristic)
 - **After**: <5% error (actual tokenization)
 
-## 🎯 Key Learnings
+## 🎯 Key Insights
 
-1. **Pre-commit hooks work perfectly** - Catches issues before they hit CI/CD
-2. **HTML reports are excellent for stakeholder communication** - Interactive charts + filterable tables
+1. **Pre-commit hooks prevent issues** - Catches problems before they reach CI/CD
+2. **HTML reports enhance communication** - Interactive charts + filterable tables
 3. **TOON format reduces token usage by 40%** - Critical for LLM-based workflows
-4. **Procedural memory learns from fixes** - Each review improves future scans
-5. **Web viewer is essential for debugging** - Visual inspection of memory contents
+4. **Procedural memory improves over time** - Each review enhances future scans
+5. **Web viewer simplifies debugging** - Visual inspection of memory contents
 
-## 🐛 Issues Found While Dogfooding
+## 🐛 Issues Identified During Validation
 
 1. **Memory corruption in .rec-praxis-rlm/code_review_memory.jsonl**
    - Lines 27-32 have extra data or invalid JSON
@@ -244,26 +242,26 @@ With tiktoken integration:
    - Mitigated with AST validation + restricted builtins
    - Add documentation explaining security measures
 
-## 🚀 Next Steps
+## 🚀 Roadmap
 
-1. ✅ **Pre-commit hooks** - DONE
-2. ✅ **GitHub Actions** - DONE
-3. ✅ **Web viewer** - DONE
-4. ✅ **Procedural memory** - DONE
-5. ✅ **HTML reports** - DONE
-6. ⏳ **EndlessAgent integration** - IN PROGRESS (using tiktoken for accurate token counting)
-7. ⏳ **MLflow tracking** - Next milestone
-8. ⏳ **VS Code extension** - Next milestone
+1. ✅ **Pre-commit hooks** - COMPLETE
+2. ✅ **GitHub Actions** - COMPLETE
+3. ✅ **Web viewer** - COMPLETE
+4. ✅ **Procedural memory** - COMPLETE
+5. ✅ **HTML reports** - COMPLETE
+6. 🔄 **EndlessAgent integration** - IN PROGRESS (using tiktoken for accurate token counting)
+7. ⏳ **MLflow tracking** - Planned
+8. ⏳ **VS Code extension** - Planned
 
-## 📝 Conclusion
+## 📝 Summary
 
-**Dogfooding works!** 🎉
+**Self-validation is successful.** ✅
 
-By using rec-praxis-rlm on itself, we've:
-- Validated all CLI tools work correctly
-- Found and fixed real bugs (storage corruption, memory migration)
+By applying rec-praxis-rlm to its own codebase, we've:
+- Validated all CLI tools function correctly
+- Identified and resolved real bugs (storage corruption, memory migration)
 - Demonstrated features to developers (HTML reports, TOON format, web viewer)
-- Proven procedural memory improves over time
-- Established CI/CD integration patterns
+- Proven procedural memory continuously improves
+- Established reproducible CI/CD integration patterns
 
-Developers can confidently use rec-praxis-rlm knowing it's battle-tested on its own codebase.
+Developers can trust rec-praxis-rlm as it's continuously tested against its own source code with every commit.
