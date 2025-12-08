@@ -64,3 +64,4 @@ memory.jsonl
 # Claude Code memory (auto-generated)
 .claude/memory.jsonl
 coverage.json
+reports/
