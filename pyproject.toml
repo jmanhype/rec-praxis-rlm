@@ -63,6 +63,9 @@ dev = [
     "black>=23.0",
     "bandit>=1.7",
     "pdoc>=14.0",
+    "hypothesis>=6.0",
+    "datasets>=2.0",
+    "ragas>=0.1",
 ]
 
 [project.scripts]
