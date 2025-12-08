@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+import sys
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import Optional
@@ -10,12 +11,18 @@ from typing import Optional
 # Balances memory usage (~40MB for 384-dim embeddings) with hit rate
 DEFAULT_EMBEDDING_CACHE_SIZE = 10000
 
+# Suppress bitsandbytes stdout errors during sentence_transformers import
+_stdout_backup = sys.stdout
+sys.stdout = sys.stderr
+
 try:
     from sentence_transformers import SentenceTransformer
 
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:  # pragma: no cover
     SENTENCE_TRANSFORMERS_AVAILABLE = False
+finally:
+    sys.stdout = _stdout_backup
 
 try:
     import openai

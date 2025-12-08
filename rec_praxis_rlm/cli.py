@@ -6,16 +6,30 @@ This module provides CLI entry points for:
 - CI/CD pipelines (GitHub Actions, GitLab CI)
 """
 
+# IMPORTANT: Redirect stdout BEFORE any imports to suppress bitsandbytes errors
+import sys
+_original_stdout = sys.stdout
+_original_stderr = sys.stderr
+# Temporarily redirect stdout to stderr during all imports
+sys.stdout = sys.stderr
+
 import argparse
 import json
 import os
-import sys
 import time
+import warnings
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import List, Optional
+from io import StringIO
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
 
 from rec_praxis_rlm import __version__
+
+# Restore stdout after imports complete
+sys.stdout = _original_stdout
 
 
 def calculate_quality_score(findings: List, total_lines: int = 1000) -> float:
@@ -282,6 +296,9 @@ def cli_code_review() -> int:
         args.format = "json"
 
     # Lazy import to avoid loading heavy dependencies unless needed
+    # Redirect stdout to stderr during import to suppress bitsandbytes errors
+    _stdout_backup = sys.stdout
+    sys.stdout = sys.stderr
     try:
         from rec_praxis_rlm.agents import CodeReviewAgent
         from rec_praxis_rlm.types import Severity
@@ -289,6 +306,8 @@ def cli_code_review() -> int:
         from rec_praxis_rlm.errors import format_import_error
         print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
+    finally:
+        sys.stdout = _stdout_backup
 
     # Setup MLflow tracking if requested
     if args.mlflow_experiment:
@@ -421,6 +440,9 @@ def cli_security_audit() -> int:
         args.format = "json"
 
     # Lazy import
+    # Redirect stdout to stderr during import to suppress bitsandbytes errors
+    _stdout_backup = sys.stdout
+    sys.stdout = sys.stderr
     try:
         from rec_praxis_rlm.agents import SecurityAuditAgent
         from rec_praxis_rlm.types import Severity
@@ -428,6 +450,8 @@ def cli_security_audit() -> int:
         from rec_praxis_rlm.errors import format_import_error
         print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
+    finally:
+        sys.stdout = _stdout_backup
 
     # Setup MLflow tracking if requested
     if args.mlflow_experiment:
@@ -546,6 +570,9 @@ def cli_dependency_scan() -> int:
         args.format = "json"
 
     # Lazy import
+    # Redirect stdout to stderr during import to suppress bitsandbytes errors
+    _stdout_backup = sys.stdout
+    sys.stdout = sys.stderr
     try:
         from rec_praxis_rlm.agents import DependencyScanAgent
         from rec_praxis_rlm.types import Severity
@@ -553,6 +580,8 @@ def cli_dependency_scan() -> int:
         from rec_praxis_rlm.errors import format_import_error
         print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
+    finally:
+        sys.stdout = _stdout_backup
 
     # Setup MLflow tracking if requested
     if args.mlflow_experiment:
@@ -700,6 +729,9 @@ def cli_pr_review() -> int:
         return 1
 
     # Lazy import
+    # Redirect stdout to stderr during import to suppress bitsandbytes errors
+    _stdout_backup = sys.stdout
+    sys.stdout = sys.stderr
     try:
         from rec_praxis_rlm.agents import CodeReviewAgent, SecurityAuditAgent
         from rec_praxis_rlm.types import Severity
@@ -707,6 +739,8 @@ def cli_pr_review() -> int:
         from rec_praxis_rlm.errors import format_import_error
         print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
+    finally:
+        sys.stdout = _stdout_backup
 
     # Initialize agents
     memory_dir = Path(args.memory_dir)
@@ -912,6 +946,9 @@ def cli_generate_tests() -> int:
     args = parser.parse_args()
 
     # Lazy import
+    # Redirect stdout to stderr during import to suppress bitsandbytes errors
+    _stdout_backup = sys.stdout
+    sys.stdout = sys.stderr
     try:
         from rec_praxis_rlm.agents import TestGenerationAgent
         from rec_praxis_rlm.agents.test_generation import Language
@@ -919,6 +956,8 @@ def cli_generate_tests() -> int:
         from rec_praxis_rlm.errors import format_import_error
         print(format_import_error(e, "agents"), file=sys.stderr)
         return 1
+    finally:
+        sys.stdout = _stdout_backup
 
     # Check for coverage.py
     if not Path(args.coverage_file).exists():
@@ -1048,27 +1087,49 @@ def cli_generate_tests() -> int:
 
 def main() -> int:
     """Main CLI entry point - dispatches to sub-commands."""
-    parser = argparse.ArgumentParser(
-        description=f"rec-praxis-rlm CLI v{__version__}",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+    # If called with no args, show help
+    if len(sys.argv) == 1:
+        parser = argparse.ArgumentParser(
+            description=f"rec-praxis-rlm CLI v{__version__}",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
 Available commands:
   rec-praxis-review         - Code review pre-commit hook
   rec-praxis-audit          - Security audit pre-commit hook
   rec-praxis-deps           - Dependency & secret scanning hook
   rec-praxis-pr-review      - Post findings as GitHub PR comments
   rec-praxis-generate-tests - Generate pytest tests for uncovered code
-        """
-    )
-    parser.add_argument("--version", action="version", version=f"rec-praxis-rlm {__version__}")
-
-    # If called with no args, show help
-    if len(sys.argv) == 1:
+            """
+        )
+        parser.add_argument("--version", action="version", version=f"rec-praxis-rlm {__version__}")
         parser.print_help()
         return 0
 
-    parser.parse_args()
-    return 0
+    # Check for --version flag
+    if len(sys.argv) == 2 and sys.argv[1] == "--version":
+        print(f"rec-praxis-rlm {__version__}")
+        return 0
+
+    # Dispatch to subcommand based on first argument
+    command = sys.argv[1]
+
+    # Remove the command from sys.argv so subcommand parsers work correctly
+    sys.argv = [sys.argv[0]] + sys.argv[2:]
+
+    command_map = {
+        "rec-praxis-review": cli_code_review,
+        "rec-praxis-audit": cli_security_audit,
+        "rec-praxis-deps": cli_dependency_scan,
+        "rec-praxis-pr-review": cli_pr_review,
+        "rec-praxis-generate-tests": cli_generate_tests,
+    }
+
+    if command in command_map:
+        return command_map[command]()
+    else:
+        print(f"Error: Unknown command '{command}'", file=sys.stderr)
+        print(f"Run 'python -m rec_praxis_rlm.cli' for available commands", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
