@@ -655,22 +655,22 @@ $ rec-praxis-review auth.py user.py --use-llm
 
 ## Rollout Plan
 
-### v0.5.0 (MVP)
+### v0.10.0 (MVP - Current: v0.9.2)
 - Basic LLM integration with `--use-llm` flag
 - No caching (user pays for every scan)
 - Release to PyPI as beta feature
 
-### v0.5.1 (Caching)
+### v0.10.1 (Caching)
 - Content-hash-based caching
 - Cache hit/miss stats in output
 - Improves user experience significantly
 
-### v0.5.2 (Optimization)
+### v0.10.2 (Optimization)
 - Parallel LLM calls
 - Full cost estimation (input + output)
 - Fuzzy deduplication
 
-### v0.6.0 (Memory Integration)
+### v0.11.0 (Memory Integration)
 - Procedural memory stores LLM findings
 - Pattern extraction from LLM findings
 - Learned patterns speed up future scans
