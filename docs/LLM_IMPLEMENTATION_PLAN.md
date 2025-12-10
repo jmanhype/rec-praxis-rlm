@@ -4,6 +4,13 @@
 
 Add optional LLM-powered deep semantic analysis to rec-praxis-rlm's code review and security audit tools, with smart caching and cost transparency.
 
+**Current State (v0.9.2):**
+- ✅ `rec-praxis-test-gen` already has `--use-llm` flag (implemented)
+- ❌ `rec-praxis-review` lacks `--use-llm` flag
+- ❌ `rec-praxis-audit` lacks `--use-llm` flag
+
+**Goal:** Extend existing LLM pattern from test generation to code review and security audit.
+
 ## Architecture: Hybrid with Smart Caching
 
 ```
