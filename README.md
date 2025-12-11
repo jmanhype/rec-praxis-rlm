@@ -142,8 +142,14 @@ rec-praxis-review src/**/*.py --format=json
 # Code review (Interactive HTML report)
 rec-praxis-review src/**/*.py --format=html --output=security-report.html
 
+# Graph-aware analysis (detects cross-function vulnerabilities)
+rec-praxis-review src/**/*.py --use-graph
+
 # Security audit
 rec-praxis-audit app.py --fail-on=CRITICAL
+
+# Security audit with graph analysis
+rec-praxis-audit app.py --use-graph
 
 # Dependency & secret scan
 rec-praxis-deps --requirements=requirements.txt --files src/**/*.py
@@ -154,6 +160,13 @@ rec-praxis-deps --requirements=requirements.txt --files src/**/*.py
 - **json**: Structured for IDE integration
 - **html**: Interactive reports with charts (v0.4.4+)
 - **sarif**: GitHub Security tab integration (v0.4.3+)
+
+**Graph-Aware Analysis** (`--use-graph`):
+- Requires [Parseltongue](https://github.com/your-org/parseltongue) server running
+- Detects cross-function SQL injection, authentication bypass, privilege escalation
+- Analyzes call graphs and data flow paths
+- Falls back to pattern-based detection if Parseltongue unavailable
+- See [CLI Reference](docs/cli-reference.md#graph-aware-analysis-with-parseltongue) for setup guide
 
 ## Configuration Presets (v0.4.3+)
 

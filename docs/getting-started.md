@@ -132,6 +132,27 @@ rec-praxis-deps --requirements=requirements.txt --check-cves
 rec-praxis-deps --files src/**/*.py --check-secrets
 ```
 
+#### Graph-Aware Analysis (Advanced)
+
+For cross-function vulnerability detection, use `--use-graph` with [Parseltongue](https://github.com/your-org/parseltongue):
+
+```bash
+# Start Parseltongue server (one-time setup)
+parseltongue serve --port 8080
+
+# Enable graph-aware analysis
+rec-praxis-review src/**/*.py --use-graph
+rec-praxis-audit app.py --use-graph
+```
+
+**Detects:**
+- Cross-function SQL injection (data flows through multiple functions)
+- Authentication bypass (public endpoints without auth checks)
+- Privilege escalation (low-privilege → high-privilege calls)
+- Large attack surface (too many public entry points)
+
+**See also:** [Graph-Aware Analysis Documentation](cli-reference.md#graph-aware-analysis-with-parseltongue)
+
 ## Configuration Presets
 
 rec-praxis-rlm includes presets for common scenarios:
