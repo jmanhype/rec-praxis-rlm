@@ -289,6 +289,10 @@ def cli_code_review() -> int:
                        help="Target quality score for iterative mode (0-100, default: 95)")
     parser.add_argument("--auto-fix", action="store_true",
                        help="Automatically suggest fixes in iterative mode")
+    parser.add_argument("--use-graph", action="store_true",
+                       help="Enable graph-aware analysis via Parseltongue (requires Parseltongue running)")
+    parser.add_argument("--parseltongue-url", default="http://localhost:8080",
+                       help="Parseltongue HTTP API URL (default: http://localhost:8080)")
     args = parser.parse_args()
 
     # Handle legacy --json flag
@@ -300,7 +304,10 @@ def cli_code_review() -> int:
     _stdout_backup = sys.stdout
     sys.stdout = sys.stderr
     try:
-        from rec_praxis_rlm.agents import CodeReviewAgent
+        if args.use_graph:
+            from rec_praxis_rlm.agents import GraphAwareCodeReviewAgent as CodeReviewAgent
+        else:
+            from rec_praxis_rlm.agents import CodeReviewAgent
         from rec_praxis_rlm.types import Severity
     except ImportError as e:
         from rec_praxis_rlm.errors import format_import_error
@@ -320,7 +327,15 @@ def cli_code_review() -> int:
     # Initialize agent with persistent memory
     memory_dir = Path(args.memory_dir)
     memory_dir.mkdir(exist_ok=True)
-    agent = CodeReviewAgent(memory_path=str(memory_dir / "code_review_memory.jsonl"))
+
+    if args.use_graph:
+        agent = CodeReviewAgent(
+            memory_path=str(memory_dir / "code_review_memory.jsonl"),
+            parseltongue_url=args.parseltongue_url
+        )
+        print(f"🔗 Using graph-aware analysis (Parseltongue: {args.parseltongue_url})")
+    else:
+        agent = CodeReviewAgent(memory_path=str(memory_dir / "code_review_memory.jsonl"))
 
     # Track scan start time for metrics
     scan_start = time.time()
@@ -433,6 +448,10 @@ def cli_security_audit() -> int:
                        help="Directory for procedural memory storage")
     parser.add_argument("--mlflow-experiment", type=str,
                        help="MLflow experiment name for metrics tracking (optional)")
+    parser.add_argument("--use-graph", action="store_true",
+                       help="Enable graph-aware analysis via Parseltongue (requires Parseltongue running)")
+    parser.add_argument("--parseltongue-url", default="http://localhost:8080",
+                       help="Parseltongue HTTP API URL (default: http://localhost:8080)")
     args = parser.parse_args()
 
     # Handle legacy --json flag
@@ -444,7 +463,10 @@ def cli_security_audit() -> int:
     _stdout_backup = sys.stdout
     sys.stdout = sys.stderr
     try:
-        from rec_praxis_rlm.agents import SecurityAuditAgent
+        if args.use_graph:
+            from rec_praxis_rlm.agents import GraphAwareCodeReviewAgent as SecurityAuditAgent
+        else:
+            from rec_praxis_rlm.agents import SecurityAuditAgent
         from rec_praxis_rlm.types import Severity
     except ImportError as e:
         from rec_praxis_rlm.errors import format_import_error
@@ -464,7 +486,15 @@ def cli_security_audit() -> int:
     # Initialize agent
     memory_dir = Path(args.memory_dir)
     memory_dir.mkdir(exist_ok=True)
-    agent = SecurityAuditAgent(memory_path=str(memory_dir / "security_audit_memory.jsonl"))
+
+    if args.use_graph:
+        agent = SecurityAuditAgent(
+            memory_path=str(memory_dir / "security_audit_memory.jsonl"),
+            parseltongue_url=args.parseltongue_url
+        )
+        print(f"🔗 Using graph-aware analysis (Parseltongue: {args.parseltongue_url})")
+    else:
+        agent = SecurityAuditAgent(memory_path=str(memory_dir / "security_audit_memory.jsonl"))
 
     # Track scan start time for metrics
     scan_start = time.time()
