@@ -5,12 +5,14 @@ and are designed for use in pre-commit hooks, CI/CD pipelines, and IDE extension
 """
 
 from rec_praxis_rlm.agents.code_review import CodeReviewAgent
+from rec_praxis_rlm.agents.code_review_graph import GraphAwareCodeReviewAgent
 from rec_praxis_rlm.agents.security_audit import SecurityAuditAgent
 from rec_praxis_rlm.agents.dependency_scan import DependencyScanAgent
 from rec_praxis_rlm.agents.test_generation import TestGenerationAgent
 
 __all__ = [
     "CodeReviewAgent",
+    "GraphAwareCodeReviewAgent",
     "SecurityAuditAgent",
     "DependencyScanAgent",
     "TestGenerationAgent",
