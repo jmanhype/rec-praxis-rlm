@@ -11,9 +11,12 @@ Inspired by HMLR's RAGAS testing approach, adapted for procedural memory.
 import pytest
 import time
 from typing import List, Dict, Any
-from ragas import evaluate
-from ragas.metrics import faithfulness, context_recall, context_precision
-from datasets import Dataset
+try:
+    from ragas import evaluate
+    from ragas.metrics import faithfulness, context_recall, context_precision
+    from datasets import Dataset
+except Exception as e:  # pragma: no cover
+    pytest.skip(f"ragas/datasets not available ({type(e).__name__}: {e})", allow_module_level=True)
 
 from rec_praxis_rlm import ProceduralMemory, Experience, MemoryConfig
 

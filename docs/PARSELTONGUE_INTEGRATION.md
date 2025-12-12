@@ -721,7 +721,7 @@ rec-praxis-review src/**/*.py --use-llm --use-graph
 **Solution:** Multi-layer caching
 
 ```python
-class CachedParseltongu eClient(ParseltongueClient):
+class CachedParseltongueClient(ParseltongueClient):
     """Parseltongue client with aggressive caching."""
 
     def __init__(self, base_url: str, cache_ttl: int = 3600):

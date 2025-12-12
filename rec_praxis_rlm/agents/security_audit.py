@@ -6,6 +6,12 @@ OWASP-based security auditing with procedural memory for continuous improvement.
 from typing import Dict, List
 
 from rec_praxis_rlm import ProceduralMemory, Experience, MemoryConfig, RLMContext
+from rec_praxis_rlm.constants import SEVERITY_ICONS
+from rec_praxis_rlm.patterns import (
+    SQL_INJECTION_PATTERNS,
+    WEAK_HASH_REGEX,
+    COMMAND_INJECTION_REGEX,
+)
 from rec_praxis_rlm.types import Finding, Severity, OWASPCategory, AuditReport
 
 
@@ -37,6 +43,8 @@ class SecurityAuditAgent:
         Returns:
             AuditReport with findings and summary statistics
         """
+        # Reset context per run to avoid duplicate doc IDs across calls.
+        self.rlm = RLMContext()
         findings = []
 
         for file_path, content in files.items():
@@ -93,14 +101,10 @@ class SecurityAuditAgent:
         if report.findings:
             lines.append("FINDINGS:\n")
             for i, finding in enumerate(report.findings, 1):
-                icon = {
-                    Severity.CRITICAL: "🔴",
-                    Severity.HIGH: "🟠",
-                    Severity.MEDIUM: "🟡",
-                    Severity.LOW: "🟢",
-                    Severity.INFO: "ℹ️"
-                }
-                lines.append(f"{i}. {icon[finding.severity]} {finding.severity.name}: {finding.title}")
+                lines.append(
+                    f"{i}. {SEVERITY_ICONS.get(finding.severity, '')} "
+                    f"{finding.severity.name}: {finding.title}"
+                )
                 lines.append(f"   File: {finding.file_path}:{finding.line_number or 'N/A'}")
                 if finding.owasp_category:
                     lines.append(f"   OWASP: {finding.owasp_category.value}")
@@ -149,12 +153,7 @@ class SecurityAuditAgent:
         findings = []
 
         # SQL Injection
-        sql_patterns = [
-            r"execute\s*\(\s*f['\"]",
-            r"execute\s*\([^)]*\.format\(",
-            r"cursor\.execute\([^)]*\+",
-        ]
-        for pattern in sql_patterns:
+        for pattern, _ in SQL_INJECTION_PATTERNS:
             matches = self.rlm.grep(pattern, doc_id=file_path)
             for match in matches:
                 findings.append(Finding(
@@ -169,7 +168,7 @@ class SecurityAuditAgent:
                 ))
 
         # Command Injection
-        cmd_injection = self.rlm.grep(r"(os\.system|subprocess\..*shell\s*=\s*True)", doc_id=file_path)
+        cmd_injection = self.rlm.grep(COMMAND_INJECTION_REGEX, doc_id=file_path)
         for match in cmd_injection:
             findings.append(Finding(
                 file_path=file_path,
@@ -189,7 +188,7 @@ class SecurityAuditAgent:
         findings = []
 
         # Weak hashing algorithms
-        weak_hash = self.rlm.grep(r"hashlib\.(md5|sha1)\(", doc_id=file_path)
+        weak_hash = self.rlm.grep(WEAK_HASH_REGEX, doc_id=file_path)
         for match in weak_hash:
             findings.append(Finding(
                 file_path=file_path,

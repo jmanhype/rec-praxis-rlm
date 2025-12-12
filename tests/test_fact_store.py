@@ -316,5 +316,25 @@ def test_kv_validation_filters():
     store.close()
 
 
+def test_concurrent_extract_facts_is_thread_safe():
+    """Concurrent writes should not raise or corrupt the store."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    store = FactStore(storage_path=":memory:")
+
+    num_threads = 6
+    per_thread = 8
+
+    def worker(tid: int) -> None:
+        for i in range(per_thread):
+            store.extract_facts(f"max_pool = {tid}{i}", source_id=f"s{tid}")
+
+    with ThreadPoolExecutor(max_workers=num_threads) as ex:
+        list(ex.map(worker, range(num_threads)))
+
+    assert store.count_facts() >= num_threads * per_thread
+    store.close()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

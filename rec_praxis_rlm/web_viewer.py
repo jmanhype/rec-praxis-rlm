@@ -28,6 +28,7 @@ except ImportError:
 
 from rec_praxis_rlm.memory import ProceduralMemory
 from rec_praxis_rlm.config import MemoryConfig
+from rec_praxis_rlm import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def create_app(memory_path: str) -> "FastAPI":
             "FastAPI is required for web viewer. Install with: pip install fastapi uvicorn"
         )
 
-    app = FastAPI(title="REC Praxis RLM Memory Viewer", version="0.9.1")
+    app = FastAPI(title="REC Praxis RLM Memory Viewer", version=__version__)
 
     # Load memory
     config = MemoryConfig(storage_path=memory_path, embedding_model="")

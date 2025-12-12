@@ -11,12 +11,12 @@ from rec_praxis_rlm.graph.parseltongue_client import (
     CallGraphNode,
     DataFlowPath
 )
-from rec_praxis_rlm.graph.cached_client import CachedParseltongu eClient
+from rec_praxis_rlm.graph.cached_client import CachedParseltongueClient
 from rec_praxis_rlm.graph.context_provider import GraphContextProvider
 
 __all__ = [
     "ParseltongueClient",
-    "CachedParseltongu eClient",
+    "CachedParseltongueClient",
     "GraphContextProvider",
     "CallGraphNode",
     "DataFlowPath",

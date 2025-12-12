@@ -419,16 +419,18 @@ class TestSandboxTimeout:
 
     def test_timeout_enforcement(self) -> None:
         """Test that long-running code is terminated."""
-        executor = SafeExecutor(ReplConfig(execution_timeout_seconds=0.5))
+        executor = SafeExecutor(ReplConfig(execution_timeout_seconds=0.2))
 
-        # This should timeout
+        # This should timeout (passes validation but runs forever)
         code = """
-import time
-time.sleep(10)
+i = 0
+while True:
+    i += 1
 """
         result = executor.execute(code)
-        # Should either fail validation or timeout
         assert result.success is False
+        assert result.error is not None
+        assert "timed out" in result.error.lower()
 
     def test_last_line_keyword_statement_not_evaluated(self) -> None:
         """Test that last line starting with keyword is not evaluated as expression."""

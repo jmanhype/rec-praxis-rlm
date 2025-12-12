@@ -14,7 +14,7 @@ def mock_requests():
         yield mock
 
 
-class TestParseltongu eClient:
+class TestParseltongueClient:
     """Test ParseltongueClient HTTP client."""
 
     def test_initialization_success(self, mock_requests):

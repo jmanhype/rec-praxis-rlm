@@ -31,7 +31,7 @@ try:
     from ragas.llms import LangchainLLMWrapper
 
     RAGAS_AVAILABLE = True
-except ImportError:
+except Exception:
     RAGAS_AVAILABLE = False
 
 from rec_praxis_rlm import ProceduralMemory, Experience, MemoryConfig, FactStore

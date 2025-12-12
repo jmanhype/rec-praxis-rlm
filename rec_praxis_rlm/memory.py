@@ -3,12 +3,12 @@
 import asyncio
 import fcntl
 import hashlib
+import itertools
 import json
 import logging
 import os
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+from typing import Optional, Iterable
 
 import numpy as np
 from pydantic import BaseModel, Field, ConfigDict
@@ -156,6 +156,8 @@ class ProceduralMemory:
         # Initialize FAISS index (will be built after loading experiences)
         self._faiss_index: Optional["faiss.Index"] = None
         self._embedding_dimension: Optional[int] = None
+        # Experiences corresponding to rows in FAISS index (keeps indices aligned)
+        self._faiss_experiences: list[Experience] = []
 
         # Initialize ThreadPoolExecutor for async operations
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="memory-async")
@@ -228,72 +230,70 @@ class ProceduralMemory:
     def _load_experiences(self) -> None:
         """Load experiences from JSONL storage file with version migration."""
         try:
-            with open(self.config.storage_path, "r") as f:
-                lines = f.readlines()
+            with open(self.config.storage_path, "r", encoding="utf-8") as f:
+                first_line = f.readline()
+                if not first_line:
+                    return
 
-            if not lines:
-                return
+                file_version = "0.0"
+                lines_iter: Iterable[str]
 
-            # Default to legacy format (no version marker)
-            file_version = "0.0"
+                first_stripped = first_line.strip()
+                if first_stripped.startswith('{"__version__"'):
+                    try:
+                        version_obj = json.loads(first_stripped)
+                        file_version = version_obj.get("__version__", "0.0")
+                        logger.info(f"Loading storage version {file_version}")
 
-            # Check for version marker in first line
-            first_line = lines[0].strip()
-            if first_line and first_line.startswith('{"__version__"'):
-                try:
-                    version_obj = json.loads(first_line)
-                    file_version = version_obj.get("__version__", "0.0")
-                    logger.info(f"Loading storage version {file_version}")
+                        if file_version != STORAGE_VERSION:
+                            # Need full read for migration.
+                            legacy_lines = [ln.strip() for ln in f if ln.strip()]
+                            migrated_lines = self._migrate_storage(file_version, legacy_lines)
+                            file_version = STORAGE_VERSION
+                            lines_iter = iter(migrated_lines)
+                        else:
+                            # Up-to-date: stream remaining lines.
+                            lines_iter = (ln.strip() for ln in f)
+                    except json.JSONDecodeError:
+                        logger.warning("Invalid version marker, treating as legacy format")
+                        lines_iter = itertools.chain([first_stripped], (ln.strip() for ln in f))
+                else:
+                    # No version marker - legacy format (pre-1.0)
+                    logger.info("Loading legacy storage format (no version marker)")
+                    lines_iter = itertools.chain([first_stripped], (ln.strip() for ln in f))
 
-                    # Migrate if needed
-                    if file_version != STORAGE_VERSION:
-                        lines = self._migrate_storage(file_version, lines[1:])
-                        file_version = STORAGE_VERSION  # Update version after migration
-                    else:
-                        lines = lines[1:]  # Skip version marker
-                except json.JSONDecodeError:
-                    # Not a version marker, treat as regular experience
-                    logger.warning("Invalid version marker, treating as legacy format")
-            else:
-                # No version marker - legacy format (pre-1.0)
-                logger.info("Loading legacy storage format (no version marker)")
+                for line_num, line in enumerate(lines_iter, start=1):
+                    if not line:
+                        continue
 
-            # Load experiences from remaining lines
-            for line_num, line in enumerate(lines, start=1):
-                line = line.strip()
-                if not line:
-                    continue
+                    self.corruption_stats["total_lines_scanned"] += 1
 
-                self.corruption_stats["total_lines_scanned"] += 1
+                    try:
+                        # For v2.0+, lines have format: checksum|json_data
+                        if file_version >= "2.0" and "|" in line:
+                            checksum, json_data = line.split("|", 1)
 
-                try:
-                    # For v2.0+, lines have format: checksum|json_data
-                    if file_version >= "2.0" and "|" in line:
-                        checksum, json_data = line.split("|", 1)
+                            computed_checksum = hashlib.sha256(json_data.encode()).hexdigest()
+                            if computed_checksum != checksum:
+                                self.corruption_stats["checksum_failures"] += 1
+                                logger.error(
+                                    f"Checksum mismatch on line {line_num}: "
+                                    f"expected {checksum}, got {computed_checksum}. "
+                                    f"Data may be corrupted. Skipping this experience."
+                                )
+                                continue
 
-                        # Validate checksum
-                        computed_checksum = hashlib.sha256(json_data.encode()).hexdigest()
-                        if computed_checksum != checksum:
-                            self.corruption_stats["checksum_failures"] += 1
-                            logger.error(
-                                f"Checksum mismatch on line {line_num}: "
-                                f"expected {checksum}, got {computed_checksum}. "
-                                f"Data may be corrupted. Skipping this experience."
-                            )
-                            continue
+                            obj = json.loads(json_data)
+                        else:
+                            obj = json.loads(line)
 
-                        obj = json.loads(json_data)
-                    else:
-                        # Legacy format (no checksum)
-                        obj = json.loads(line)
-
-                    exp = Experience(**obj)
-                    self.experiences.append(exp)
-                except Exception as e:
-                    self.corruption_stats["parse_errors"] += 1
-                    logger.warning(
-                        f"Skipping corrupted line {line_num} in {self.config.storage_path}: {e}"
-                    )
+                        exp = Experience(**obj)
+                        self.experiences.append(exp)
+                    except Exception as e:
+                        self.corruption_stats["parse_errors"] += 1
+                        logger.warning(
+                            f"Skipping corrupted line {line_num} in {self.config.storage_path}: {e}"
+                        )
 
             # Emit corruption statistics
             if self.corruption_stats["checksum_failures"] > 0 or self.corruption_stats["parse_errors"] > 0:
@@ -358,71 +358,73 @@ class ProceduralMemory:
             )
 
     def _append_experience(self, experience: Experience) -> None:
-        """Append an experience to JSONL file atomically with version marker.
+        """Append an experience to JSONL storage safely.
 
-        Args:
-            experience: Experience to append
+        Ensures the on-disk file is at STORAGE_VERSION and appends a checksum-protected
+        line under an exclusive lock to prevent lost updates from concurrent writers.
         """
         if self.config.storage_path == ":memory:":
-            # In-memory mode - no file I/O
             return
 
+        storage_path = self.config.storage_path
+
         try:
-            # Ensure parent directory exists
-            os.makedirs(os.path.dirname(self.config.storage_path), exist_ok=True)
+            parent_dir = os.path.dirname(storage_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
 
-            # Atomic write: write to temp file, then rename
-            fd, temp_path = tempfile.mkstemp(
-                dir=os.path.dirname(self.config.storage_path),
-                prefix=".memory_",
-                suffix=".tmp",
-            )
+            json_data = experience.model_dump_json()
+            checksum = hashlib.sha256(json_data.encode()).hexdigest()
+            new_line = f"{checksum}|{json_data}\n"
 
-            fd_opened = False  # Track if fd was successfully converted to file object
-            try:
-                # Copy existing content + new experience
-                temp_file = os.fdopen(fd, "w")
-                fd_opened = True  # Mark fd as successfully opened
+            # Open for read/write and append; create if missing.
+            with open(storage_path, "a+", encoding="utf-8") as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    f.seek(0)
+                    first_line = f.readline()
 
-                with temp_file:
-                    if os.path.exists(self.config.storage_path):
-                        # File exists - acquire lock and copy existing content
-                        with open(self.config.storage_path, "r") as existing:
-                            # Acquire exclusive lock to prevent race conditions
-                            try:
-                                fcntl.flock(existing.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                                temp_file.write(existing.read())
-                            except BlockingIOError:
-                                # Another process has the lock, wait for it
-                                fcntl.flock(existing.fileno(), fcntl.LOCK_EX)
-                                temp_file.write(existing.read())
-                            finally:
-                                # Release lock
-                                fcntl.flock(existing.fileno(), fcntl.LOCK_UN)
+                    lines_to_migrate: list[str] = []
+                    file_version = "0.0"
+
+                    if not first_line:
+                        # Empty file: write version marker.
+                        f.write(json.dumps({"__version__": STORAGE_VERSION}) + "\n")
                     else:
-                        # New file - write version marker as first line
-                        version_marker = json.dumps({"__version__": STORAGE_VERSION})
-                        temp_file.write(version_marker + "\n")
+                        first_stripped = first_line.strip()
 
-                    # Append new experience with checksum (v2.0 format)
-                    json_data = experience.model_dump_json()
-                    checksum = hashlib.sha256(json_data.encode()).hexdigest()
-                    temp_file.write(f"{checksum}|{json_data}\n")
+                        if first_stripped.startswith('{"__version__"'):
+                            try:
+                                version_obj = json.loads(first_stripped)
+                                file_version = version_obj.get("__version__", "0.0")
+                            except json.JSONDecodeError:
+                                file_version = "0.0"
 
-                # Atomic rename
-                os.replace(temp_path, self.config.storage_path)
-            except Exception:
-                # Clean up file descriptor if not opened
-                if not fd_opened:
-                    try:
-                        os.close(fd)
-                    except OSError:
-                        pass  # Already closed or invalid
+                            if file_version != STORAGE_VERSION:
+                                # Read remaining legacy lines (excluding marker)
+                                lines_to_migrate = [
+                                    ln.strip() for ln in f.readlines() if ln.strip()
+                                ]
+                        else:
+                            # Legacy format without marker: include first line + rest
+                            rest = [ln.strip() for ln in f.readlines() if ln.strip()]
+                            lines_to_migrate = [first_stripped] + rest
 
-                # Clean up temp file on error
-                if os.path.exists(temp_path):  # pragma: no branch
-                    os.unlink(temp_path)
-                raise
+                        if lines_to_migrate:
+                            migrated = self._migrate_storage(file_version, lines_to_migrate)
+                            f.seek(0)
+                            f.truncate(0)
+                            f.write(json.dumps({"__version__": STORAGE_VERSION}) + "\n")
+                            for ln in migrated:
+                                f.write(ln + "\n")
+
+                    # Append new experience at end.
+                    f.seek(0, os.SEEK_END)
+                    f.write(new_line)
+                    f.flush()
+                    os.fsync(f.fileno())
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
         except Exception as e:
             raise StorageError(f"Failed to append experience: {e}")
@@ -500,31 +502,36 @@ class ProceduralMemory:
         If all embeddings are invalid, the FAISS index is disabled.
         """
         if not self.use_faiss:
+            self._faiss_index = None
+            self._embedding_dimension = None
+            self._faiss_experiences = []
             return
 
         try:
-            # Collect all embeddings
-            embeddings_list = []
+            # Collect all embeddings with their source experiences
+            embeddings_list: list[tuple[Experience, list[float]]] = []
             for exp in self.experiences:
-                if exp.embedding is not None:
-                    # Validate embedding is a list/array
-                    if not isinstance(exp.embedding, (list, np.ndarray)):
-                        continue
-                    embeddings_list.append(exp.embedding)
+                if exp.embedding is None:
+                    continue
+                if not isinstance(exp.embedding, (list, np.ndarray)):
+                    continue
+                embeddings_list.append((exp, list(exp.embedding)))
 
             if not embeddings_list:
                 # No embeddings available
                 self._faiss_index = None
                 self._embedding_dimension = None
+                self._faiss_experiences = []
                 logger.debug("No embeddings available for FAISS index")
                 return
 
             # Determine embedding dimension from first embedding
-            expected_dim = len(embeddings_list[0])
+            expected_dim = len(embeddings_list[0][1])
 
             # Validate all embeddings have same dimension
-            filtered_embeddings = []
-            for i, emb in enumerate(embeddings_list):
+            filtered_embeddings: list[list[float]] = []
+            filtered_experiences: list[Experience] = []
+            for i, (exp, emb) in enumerate(embeddings_list):
                 if len(emb) != expected_dim:
                     logger.warning(
                         f"Skipping embedding {i} with dimension {len(emb)} "
@@ -532,11 +539,13 @@ class ProceduralMemory:
                     )
                     continue
                 filtered_embeddings.append(emb)
+                filtered_experiences.append(exp)
 
             if not filtered_embeddings:
                 # All embeddings were filtered out due to dimension mismatch
                 self._faiss_index = None
                 self._embedding_dimension = None
+                self._faiss_experiences = []
                 logger.warning("No valid embeddings after dimension validation")
                 return
 
@@ -552,6 +561,7 @@ class ProceduralMemory:
                 )
                 self._faiss_index = None
                 self._embedding_dimension = None
+                self._faiss_experiences = []
                 return
 
             # Convert to numpy array and normalize for cosine similarity
@@ -565,9 +575,10 @@ class ProceduralMemory:
             # Create FAISS index (IndexFlatIP for normalized vectors = cosine similarity)
             self._faiss_index = faiss.IndexFlatIP(self._embedding_dimension)
             self._faiss_index.add(embeddings_normalized)
+            self._faiss_experiences = filtered_experiences
 
             logger.info(
-                f"Built FAISS index with {len(embeddings_list)} embeddings "
+                f"Built FAISS index with {len(filtered_embeddings)} embeddings "
                 f"(dimension={self._embedding_dimension})"
             )
         except Exception as e:
@@ -575,6 +586,7 @@ class ProceduralMemory:
             logger.warning(f"Failed to build FAISS index: {e}. Falling back to linear scan.")
             self._faiss_index = None
             self._embedding_dimension = None
+            self._faiss_experiences = []
 
     def _compute_similarity_score(
         self,
@@ -668,17 +680,24 @@ class ProceduralMemory:
 
         # Update FAISS index if available
         if self.use_faiss and experience.embedding is not None:
-            if self._faiss_index is None:
+            if self._faiss_index is None or self._embedding_dimension is None:
                 # First experience with embedding - rebuild index
                 self._rebuild_faiss_index()
             else:
-                # Incremental add to existing index
-                embedding_np = np.array([experience.embedding], dtype=np.float32)
-                # Normalize for cosine similarity
-                norm = np.linalg.norm(embedding_np)
-                if norm > 0:
-                    embedding_normalized = embedding_np / norm
-                    self._faiss_index.add(embedding_normalized)
+                if len(experience.embedding) != self._embedding_dimension:
+                    logger.warning(
+                        f"Skipping FAISS add due to dimension mismatch "
+                        f"({len(experience.embedding)} != {self._embedding_dimension})"
+                    )
+                else:
+                    # Incremental add to existing index
+                    embedding_np = np.array([experience.embedding], dtype=np.float32)
+                    # Normalize for cosine similarity
+                    norm = np.linalg.norm(embedding_np)
+                    if norm > 0:
+                        embedding_normalized = embedding_np / norm
+                        self._faiss_index.add(embedding_normalized)
+                        self._faiss_experiences.append(experience)
 
         # Emit telemetry
         emit_event(
@@ -745,10 +764,13 @@ class ProceduralMemory:
         Returns:
             List of experiences sorted by similarity (descending)
         """
+        if not self._faiss_experiences:
+            return self._recall_linear(env_features, goal_embedding, top_k)
+
         # Get candidate pool from FAISS (over-fetch for better recall after re-ranking)
         # Fetch more candidates than needed because environmental filtering might reduce count
         candidate_multiplier = 5  # Fetch 5x more candidates for re-ranking
-        k_candidates = min(top_k * candidate_multiplier, len(self.experiences))
+        k_candidates = min(top_k * candidate_multiplier, len(self._faiss_experiences))
 
         # Normalize query embedding for cosine similarity
         query_np = np.array([goal_embedding], dtype=np.float32)
@@ -762,16 +784,13 @@ class ProceduralMemory:
         # FAISS search (returns distances and indices)
         distances, indices = self._faiss_index.search(query_normalized, k_candidates)
 
-        # Map FAISS indices to experiences (only those with embeddings)
-        experiences_with_embeddings = [exp for exp in self.experiences if exp.embedding is not None]
-
         # Re-rank candidates with full hybrid score
         scored_experiences: list[tuple[Experience, float]] = []
         for idx, distance in zip(indices[0], distances[0]):
-            if idx < 0 or idx >= len(experiences_with_embeddings):
+            if idx < 0 or idx >= len(self._faiss_experiences):
                 continue  # Invalid index
 
-            exp = experiences_with_embeddings[idx]
+            exp = self._faiss_experiences[idx]
 
             # Filter by success if required
             if self.config.require_success and not exp.success:

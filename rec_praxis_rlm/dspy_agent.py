@@ -32,7 +32,7 @@ else:
     try:
         import mlflow
         import mlflow.dspy
-    except ImportError:  # pragma: no cover
+    except Exception:  # pragma: no cover
         mlflow = None  # type: ignore[assignment]
 
 

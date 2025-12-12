@@ -9,8 +9,9 @@ try:
     import mlflow.dspy
 
     MLFLOW_AVAILABLE = True
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     MLFLOW_AVAILABLE = False
+    mlflow = None  # type: ignore[assignment]
 
 # Global hook registry: event_name -> list of callbacks
 _hooks: dict[str, list[Callable[[str, dict[str, Any]], None]]] = defaultdict(list)
@@ -26,7 +27,7 @@ def setup_mlflow_tracing(
         experiment_name: Optional experiment name for MLflow
         log_traces_from_compile: If True, log traces from optimizer compilation
     """
-    if not MLFLOW_AVAILABLE:
+    if mlflow is None:
         raise ImportError("mlflow not installed. Install with: pip install mlflow")
 
     if experiment_name:

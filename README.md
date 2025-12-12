@@ -15,7 +15,7 @@ A Python package that provides persistent procedural memory and safe code execut
 - **Procedural Memory**: Store and retrieve agent experiences with hybrid similarity scoring (environmental + goal embeddings)
 - **FAISS Indexing**: 10-100x faster retrieval at scale (>10k experiences)
 - **RLM Context**: Programmatic document inspection (grep, peek, head, tail) with ReDoS protection
-- **Safe Code Execution**: Sandboxed Python REPL with AST validation and restricted builtins
+- **Safe Code Execution**: Sandboxed Python REPL for trusted helper snippets (not hardened for untrusted/adversarial code), with AST validation and restricted builtins
 - **DSPy 3.0 Integration**: Autonomous planning with ReAct agents and integrated tools
 - **MLflow Observability**: Automatic tracing and experiment tracking
 - **Production Ready**: 99.38% test coverage, comprehensive error handling
@@ -107,6 +107,8 @@ if result.success:
 else:
     print(f"Error: {result.error}")
 ```
+
+Note: the sandbox is designed to safely run *trusted* snippets for agent tooling. It is not a secure boundary against malicious code; do not execute untrusted user input with it.
 
 ### Example 4: DSPy Autonomous Planning
 

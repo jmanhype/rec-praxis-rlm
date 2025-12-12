@@ -16,7 +16,10 @@ import pytest
 import time
 from typing import List
 from dotenv import load_dotenv
-from datasets import Dataset
+try:
+    from datasets import Dataset
+except Exception as e:  # pragma: no cover
+    pytest.skip(f"datasets not available ({type(e).__name__}: {e})", allow_module_level=True)
 
 # Load environment variables
 load_dotenv()

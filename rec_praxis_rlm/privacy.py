@@ -59,19 +59,19 @@ class PrivacyRedactor:
         # API Keys and Tokens (more specific patterns first)
         RedactionPattern(
             name="anthropic_key",
-            pattern=re.compile(r"sk-ant-[a-zA-Z0-9_-]{15,}"),
+            pattern=re.compile(r"\bsk-ant-[a-zA-Z0-9_-]{15,}\b"),
             replacement="[REDACTED_ANTHROPIC_KEY]",
             privacy_level="private",
         ),
         RedactionPattern(
             name="openai_key",
-            pattern=re.compile(r"sk-[a-zA-Z0-9_-]{15,}"),
+            pattern=re.compile(r"\bsk-[a-zA-Z0-9_-]{15,}\b"),
             replacement="[REDACTED_OPENAI_KEY]",
             privacy_level="private",
         ),
         RedactionPattern(
             name="aws_key",
-            pattern=re.compile(r"AKIA[0-9A-Z]{16}"),
+            pattern=re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
             replacement="[REDACTED_AWS_KEY]",
             privacy_level="private",
         ),

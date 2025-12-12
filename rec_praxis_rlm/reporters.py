@@ -1,5 +1,6 @@
 """HTML report generation for security scan results."""
 
+import html
 import json
 from collections import Counter
 from datetime import datetime, timezone
@@ -223,8 +224,14 @@ def generate_html_report(
     table_rows = []
     for finding in sorted(findings, key=lambda f: (f.severity.value, f.file_path)):
         severity_class = f"severity-{finding.severity.name.lower()}"
-        owasp_display = finding.owasp_category.value if finding.owasp_category else "N/A"
+        owasp_display = (
+            html.escape(finding.owasp_category.value) if finding.owasp_category else "N/A"
+        )
         cwe_display = f"CWE-{finding.cwe_id}" if finding.cwe_id else ""
+        title = html.escape(finding.title)
+        description = html.escape(finding.description)
+        remediation = html.escape(finding.remediation)
+        file_path = html.escape(finding.file_path)
 
         row = f"""
         <tr data-severity="{finding.severity.name}">
@@ -234,15 +241,15 @@ def generate_html_report(
                 </span>
             </td>
             <td class="px-6 py-4">
-                <div class="font-semibold text-gray-900">{finding.title}</div>
-                <div class="text-sm text-gray-600 mt-1">{finding.description}</div>
+                <div class="font-semibold text-gray-900">{title}</div>
+                <div class="text-sm text-gray-600 mt-1">{description}</div>
                 {f'<div class="text-xs text-gray-500 mt-1">{cwe_display}</div>' if cwe_display else ''}
                 <details class="mt-2">
                     <summary class="text-sm text-blue-600 cursor-pointer hover:underline">Remediation</summary>
-                    <div class="text-sm text-gray-700 mt-1 pl-4">{finding.remediation}</div>
+                    <div class="text-sm text-gray-700 mt-1 pl-4">{remediation}</div>
                 </details>
             </td>
-            <td class="px-6 py-4 text-sm font-mono text-gray-700">{finding.file_path}</td>
+            <td class="px-6 py-4 text-sm font-mono text-gray-700">{file_path}</td>
             <td class="px-6 py-4 text-sm text-gray-600">{finding.line_number or 'N/A'}</td>
             <td class="px-6 py-4 text-sm text-gray-600">{owasp_display}</td>
         </tr>
@@ -255,6 +262,11 @@ def generate_html_report(
         cve_rows = []
         for cve in cve_findings:
             severity_class = f"severity-{cve.severity.name.lower()}"
+            cve_id = html.escape(cve.cve_id)
+            cve_desc = html.escape(cve.description)
+            pkg_name = html.escape(cve.package_name)
+            installed_ver = html.escape(cve.installed_version)
+            fixed_ver = html.escape(cve.fixed_version) if cve.fixed_version else "N/A"
             cve_rows.append(f"""
             <tr>
                 <td class="px-6 py-4">
@@ -263,12 +275,12 @@ def generate_html_report(
                     </span>
                 </td>
                 <td class="px-6 py-4">
-                    <div class="font-semibold text-gray-900">{cve.cve_id}</div>
-                    <div class="text-sm text-gray-600 mt-1">{cve.description}</div>
+                    <div class="font-semibold text-gray-900">{cve_id}</div>
+                    <div class="text-sm text-gray-600 mt-1">{cve_desc}</div>
                 </td>
-                <td class="px-6 py-4 text-sm font-mono text-gray-700">{cve.package_name}</td>
-                <td class="px-6 py-4 text-sm text-gray-600">{cve.installed_version}</td>
-                <td class="px-6 py-4 text-sm text-green-600">{cve.fixed_version or 'N/A'}</td>
+                <td class="px-6 py-4 text-sm font-mono text-gray-700">{pkg_name}</td>
+                <td class="px-6 py-4 text-sm text-gray-600">{installed_ver}</td>
+                <td class="px-6 py-4 text-sm text-green-600">{fixed_ver}</td>
             </tr>
             """)
 

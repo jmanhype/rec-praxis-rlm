@@ -59,7 +59,7 @@ class ParseltongueClient:
         try:
             response = requests.get(f"{self.base_url}/health", timeout=2)
             return response.status_code == 200
-        except requests.RequestException:
+        except Exception:
             return False
 
     def is_available(self) -> bool:
@@ -105,7 +105,7 @@ class ParseltongueClient:
                     callees=data.get("callees", [])
                 )
             return None
-        except requests.RequestException:
+        except Exception:
             return None
 
     def get_data_flow(self, source: str, sink: str, max_depth: int = 10) -> List[DataFlowPath]:
@@ -148,7 +148,7 @@ class ParseltongueClient:
                     for path in data.get("paths", [])
                 ]
             return []
-        except requests.RequestException:
+        except Exception:
             return []
 
     def get_entry_points(self, public_only: bool = True) -> List[str]:
@@ -179,7 +179,7 @@ class ParseltongueClient:
                 data = response.json()
                 return data.get("entry_points", [])
             return []
-        except requests.RequestException:
+        except Exception:
             return []
 
     def find_function_references(self, function_name: str) -> List[Dict[str, str]]:
@@ -211,5 +211,5 @@ class ParseltongueClient:
                 data = response.json()
                 return data.get("references", [])
             return []
-        except requests.RequestException:
+        except Exception:
             return []

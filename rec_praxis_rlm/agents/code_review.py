@@ -6,11 +6,22 @@ findings across sessions.
 """
 
 import re
+import io
+import tokenize
 import time
 from pathlib import Path
 from typing import Dict, List
 
 from rec_praxis_rlm import ProceduralMemory, Experience, MemoryConfig, RLMContext
+from rec_praxis_rlm.patterns import (
+    SQL_INJECTION_PATTERNS,
+    HARDCODED_CREDENTIAL_PATTERNS,
+    WEAK_HASH_REGEX,
+    BARE_EXCEPT_REGEX,
+    PRINT_REGEX,
+    DANGEROUS_EXEC_REGEX,
+    SHELL_TRUE_REGEX,
+)
 from rec_praxis_rlm.types import Finding, Severity
 
 
@@ -49,6 +60,8 @@ class CodeReviewAgent:
         Returns:
             List of Finding objects matching CLI contract
         """
+        # Reset context per run to avoid duplicate doc IDs across calls.
+        self.rlm = RLMContext()
         all_findings = []
 
         for file_path, content in files.items():
@@ -78,14 +91,7 @@ class CodeReviewAgent:
         findings = []
 
         # 1. SQL Injection patterns
-        sql_patterns = [
-            (r"execute\s*\(\s*f['\"]", "f-string in SQL execute()"),
-            (r"execute\s*\(\s*['\"].*%s", "String formatting in SQL execute()"),
-            (r"execute\s*\([^)]*\.format\(", ".format() in SQL execute()"),
-            (r"cursor\.execute\([^)]*\+", "String concatenation in SQL execute()"),
-        ]
-
-        for pattern, desc in sql_patterns:
+        for pattern, desc in SQL_INJECTION_PATTERNS:
             matches = self.rlm.grep(pattern, doc_id=file_path)
             if matches:
                 for match in matches:
@@ -99,14 +105,7 @@ class CodeReviewAgent:
                     ))
 
         # 2. Hardcoded credentials
-        cred_patterns = [
-            (r"password\s*=\s*['\"][^'\"]+['\"]", "Hardcoded password"),
-            (r"api_key\s*=\s*['\"](?!.*\$\{)(?!.*os\.getenv)[^'\"]{10,}['\"]", "Hardcoded API key"),
-            (r"secret\s*=\s*['\"][^'\"]+['\"]", "Hardcoded secret"),
-            (r"token\s*=\s*['\"](?!.*\$\{)(?!.*os\.getenv)[^'\"]{10,}['\"]", "Hardcoded token"),
-        ]
-
-        for pattern, desc in cred_patterns:
+        for pattern, desc in HARDCODED_CREDENTIAL_PATTERNS:
             matches = self.rlm.grep(pattern, doc_id=file_path)
             if matches:
                 for match in matches:
@@ -120,20 +119,25 @@ class CodeReviewAgent:
                     ))
 
         # 3. Weak cryptography
-        weak_crypto = self.rlm.grep(r"hashlib\.(md5|sha1)\(", doc_id=file_path)
+        weak_crypto = self.rlm.grep(WEAK_HASH_REGEX, doc_id=file_path)
         if weak_crypto:
+            normalized_path = file_path.replace("\\", "/")
+            is_test_file = normalized_path.startswith("tests/") or "/tests/" in normalized_path
+            severity = Severity.MEDIUM if is_test_file else Severity.HIGH
             for match in weak_crypto:
-                findings.append(Finding(
-                    file_path=file_path,
-                    line_number=match.line_number,
-                    severity=Severity.HIGH,
-                    title="Weak Cryptography",
-                    description="MD5/SHA1 used for hashing (deprecated for security)",
-                    remediation="Use bcrypt for passwords: bcrypt.hashpw(password, bcrypt.gensalt()) or SHA-256+ for data integrity"
-                ))
+                findings.append(
+                    Finding(
+                        file_path=file_path,
+                        line_number=match.line_number,
+                        severity=severity,
+                        title="Weak Cryptography",
+                        description="MD5/SHA1 used for hashing (deprecated for security)",
+                        remediation="Use bcrypt for passwords: bcrypt.hashpw(password, bcrypt.gensalt()) or SHA-256+ for data integrity",
+                    )
+                )
 
         # 4. Bare except blocks
-        bare_except = self.rlm.grep(r"^\s*except\s*:\s*$", doc_id=file_path)
+        bare_except = self.rlm.grep(BARE_EXCEPT_REGEX, doc_id=file_path)
         if bare_except:
             for match in bare_except:
                 findings.append(Finding(
@@ -146,7 +150,7 @@ class CodeReviewAgent:
                 ))
 
         # 5. Debug print statements (only flag if many)
-        print_statements = self.rlm.grep(r"^\s*print\s*\(", doc_id=file_path)
+        print_statements = self.rlm.grep(PRINT_REGEX, doc_id=file_path)
         if len(print_statements) > 5:  # Only flag if excessive
             # Group by line number to avoid duplicates
             unique_lines = set(m.line_number for m in print_statements)
@@ -161,49 +165,61 @@ class CodeReviewAgent:
                 ))
 
         # 6. Eval/exec usage (filter out false positives in strings/comments)
-        dangerous_funcs = self.rlm.grep(r"\b(eval|exec)\s*\(", doc_id=file_path)
+        dangerous_funcs = self.rlm.grep(DANGEROUS_EXEC_REGEX, doc_id=file_path)
         if dangerous_funcs:
-            # Get full content to check line context
-            lines = content.split('\n')
+            normalized_path = file_path.replace("\\", "/")
+            # Allowlisted internal trusted sandbox implementation.
+            if normalized_path == "rec_praxis_rlm/sandbox.py":
+                dangerous_funcs = []
+
+        if dangerous_funcs:
+            lines = content.split("\n")
+
+            # Build a set of line numbers that are inside string literals/docstrings.
+            string_lines: set[int] = set()
+            try:
+                for tok in tokenize.generate_tokens(io.StringIO(content).readline):
+                    if tok.type == tokenize.STRING:
+                        start_line = tok.start[0]
+                        end_line = tok.end[0]
+                        string_lines.update(range(start_line, end_line + 1))
+            except tokenize.TokenError:
+                # If tokenization fails, fall back to heuristic checks below.
+                pass
 
             for match in dangerous_funcs:
-                # Skip if it's in a comment line
+                if match.line_number is None:
+                    continue
+
+                # Ignore matches inside strings/docstrings.
+                if match.line_number in string_lines:
+                    continue
+
                 if match.line_number <= len(lines):
                     full_line = lines[match.line_number - 1]
                     stripped = full_line.strip()
 
                     # Skip comment lines
-                    if stripped.startswith('#'):
+                    if stripped.startswith("#"):
                         continue
-
-                    # Skip if eval/exec appears after a quote on the same line
-                    # This catches: description = "The eval() function..."
-                    match_pos = full_line.find('eval(') if 'eval(' in full_line else full_line.find('exec(')
-                    if match_pos > 0:
-                        # Check if there's an opening quote before the match
-                        before_match = full_line[:match_pos]
-                        # Count quotes before the match
-                        double_quotes = before_match.count('"')
-                        single_quotes = before_match.count("'")
-                        # If odd number of quotes, we're inside a string literal
-                        if double_quotes % 2 == 1 or single_quotes % 2 == 1:
-                            continue
 
                     # Also skip if line contains string assignment keywords
-                    if any(keyword in full_line for keyword in ['description=', 'remediation=', 'title=', 'help=']):
+                    if any(keyword in full_line for keyword in ["description=", "remediation=", "title=", "help="]):
                         continue
 
-                findings.append(Finding(
-                    file_path=file_path,
-                    line_number=match.line_number,
-                    severity=Severity.CRITICAL,
-                    title="Dangerous Code Execution",
-                    description="eval() or exec() enables arbitrary code execution",
-                    remediation="Avoid eval/exec. Use safer alternatives like ast.literal_eval() for data or explicit function dispatch"
-                ))
+                findings.append(
+                    Finding(
+                        file_path=file_path,
+                        line_number=match.line_number,
+                        severity=Severity.CRITICAL,
+                        title="Dangerous Code Execution",
+                        description="eval() or exec() enables arbitrary code execution",
+                        remediation="Avoid eval/exec. Use safer alternatives like ast.literal_eval() for data or explicit function dispatch",
+                    )
+                )
 
         # 7. Shell injection via subprocess
-        shell_injection = self.rlm.grep(r"subprocess\.(call|run|Popen)\([^)]*shell\s*=\s*True", doc_id=file_path)
+        shell_injection = self.rlm.grep(SHELL_TRUE_REGEX, doc_id=file_path)
         if shell_injection:
             for match in shell_injection:
                 findings.append(Finding(

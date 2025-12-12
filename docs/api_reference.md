@@ -340,7 +340,7 @@ recent_logs = context.tail("server_log", n_lines=100)
 
 ##### `safe_exec(code: str, context_vars: Optional[dict[str, Any]] = None) -> ExecutionResult`
 
-Execute code safely in sandboxed environment.
+Execute trusted code snippets in a sandboxed environment. This is designed for agent tooling and helper code, not as a hardened boundary against untrusted/adversarial input.
 
 **Parameters:**
 - `code` (str): Python code to execute
@@ -421,7 +421,7 @@ Pydantic model representing code execution result.
 
 ### `SafeExecutor`
 
-Safe code executor with sandboxed environment and AST validation.
+Safe code executor with sandboxed environment and AST validation. Intended for trusted snippets; do not use as a security boundary for untrusted code.
 
 #### Constructor
 
@@ -436,7 +436,7 @@ SafeExecutor(config: ReplConfig)
 
 ##### `execute(code: str, context_vars: Optional[dict[str, Any]] = None) -> _SandboxResult`
 
-Execute code in sandboxed environment.
+Execute code in sandboxed environment (trusted snippets only).
 
 **Parameters:**
 - `code` (str): Python code to execute

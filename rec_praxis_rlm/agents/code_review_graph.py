@@ -136,6 +136,10 @@ class GraphAwareCodeReviewAgent(CodeReviewAgent):
         for sink, vuln_type in sinks.items():
             flows = self.parseltongue.get_data_flow("user", sink)
             for flow in flows:
+                # Parseltongue is queried per-sink, but guard against
+                # mocks or upstream changes returning mixed sinks.
+                if flow.sink != sink:
+                    continue
                 if flow.is_tainted:
                     finding = Finding(
                         file_path=flow.path[0] if flow.path else "unknown",
@@ -229,7 +233,7 @@ class GraphAwareCodeReviewAgent(CodeReviewAgent):
         pattern = " → ".join(flow_path)
 
         exp = Experience(
-            env_features=["python", "graph_finding", finding.severity.name.lower()],
+            env_features=["graph_finding"],
             goal=f"detect {finding.title.lower()}",
             action=f"Graph analysis found: {finding.description}",
             result=f"Pattern: {pattern}\nRemediation: {finding.remediation}",

@@ -7,6 +7,7 @@ import re
 from typing import Dict, List, Tuple
 
 from rec_praxis_rlm import ProceduralMemory, Experience, MemoryConfig, RLMContext
+from rec_praxis_rlm.constants import SEVERITY_ICONS
 from rec_praxis_rlm.types import CVEFinding, SecretFinding, Severity
 
 
@@ -96,6 +97,8 @@ class DependencyScanAgent:
         Returns:
             List of SecretFinding objects
         """
+        # Reset context per run to avoid duplicate doc IDs across calls.
+        self.rlm = RLMContext()
         findings = []
 
         for file_path, content in files.items():
@@ -115,10 +118,11 @@ class DependencyScanAgent:
             (r"api_key\s*=\s*['\"]([^'\"]{20,})['\"]", "API Key", Severity.CRITICAL),
             (r"secret\s*=\s*['\"]([^'\"]{10,})['\"]", "Secret Key", Severity.HIGH),
             (r"token\s*=\s*['\"]([^'\"]{20,})['\"]", "Auth Token", Severity.HIGH),
-            (r"(sk-[a-zA-Z0-9]{32,})", "OpenAI API Key", Severity.CRITICAL),
-            (r"(ghp_[a-zA-Z0-9]{36})", "GitHub Personal Access Token", Severity.CRITICAL),
-            (r"(gsk-[a-zA-Z0-9]{32,})", "Groq API Key", Severity.CRITICAL),
-            (r"(AWS[A-Z0-9]{16,})", "AWS Access Key", Severity.CRITICAL),
+            (r"\bsk-ant-[a-zA-Z0-9_-]{15,}\b", "Anthropic API Key", Severity.CRITICAL),
+            (r"\bsk-[a-zA-Z0-9_-]{15,}\b", "OpenAI API Key", Severity.CRITICAL),
+            (r"\bghp_[a-zA-Z0-9]{36}\b", "GitHub Personal Access Token", Severity.CRITICAL),
+            (r"\bgsk-[a-zA-Z0-9_-]{15,}\b", "Groq API Key", Severity.CRITICAL),
+            (r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b", "AWS Access Key", Severity.CRITICAL),
             (r"-----BEGIN (RSA |DSA )?PRIVATE KEY-----", "Private Key", Severity.CRITICAL),
         ]
 
@@ -175,12 +179,7 @@ class DependencyScanAgent:
         if cve_findings:
             lines.append("CVE VULNERABILITIES:\n")
             for i, finding in enumerate(cve_findings, 1):
-                icon = {
-                    Severity.CRITICAL: "🔴",
-                    Severity.HIGH: "🟠",
-                    Severity.MEDIUM: "🟡",
-                    Severity.LOW: "🟢"
-                }[finding.severity]
+                icon = SEVERITY_ICONS.get(finding.severity, "")
                 lines.append(f"{i}. {icon} {finding.severity.name}: {finding.cve_id}")
                 lines.append(f"   Package: {finding.package_name}=={finding.installed_version}")
                 lines.append(f"   Issue: {finding.description}")
@@ -190,12 +189,7 @@ class DependencyScanAgent:
         if secret_findings:
             lines.append("SECRETS DETECTED:\n")
             for i, finding in enumerate(secret_findings, 1):
-                icon = {
-                    Severity.CRITICAL: "🔴",
-                    Severity.HIGH: "🟠",
-                    Severity.MEDIUM: "🟡",
-                    Severity.LOW: "🟢"
-                }[finding.severity]
+                icon = SEVERITY_ICONS.get(finding.severity, "")
                 lines.append(f"{i}. {icon} {finding.severity.name}: {finding.secret_type}")
                 lines.append(f"   File: {finding.file_path}:{finding.line_number}")
                 lines.append(f"   Issue: {finding.description}")

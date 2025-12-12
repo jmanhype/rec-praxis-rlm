@@ -3,8 +3,9 @@
 import ast
 import io
 import logging
-from typing import Any, Optional
+import multiprocessing as mp
 from contextlib import redirect_stdout, redirect_stderr
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -115,11 +116,100 @@ def _validate_code(code: str) -> None:
         raise ExecutionError(f"Code validation failed: {error_msg}")
 
 
+def _execute_code_worker(
+    code: str,
+    context_vars: dict[str, Any],
+    allowed_builtins: list[str],
+    max_output_chars: int,
+) -> dict[str, Any]:
+    """Execute validated code in a restricted namespace and capture output.
+
+    This function is top-level so it can be used as a multiprocessing target.
+    """
+    builtins_dict = (
+        __builtins__  # type: ignore[has-type]
+        if isinstance(__builtins__, dict)
+        else __builtins__.__dict__  # type: ignore[attr-defined]
+    )
+    safe_builtins = {name: builtins_dict[name] for name in allowed_builtins if name in builtins_dict}
+    safe_builtins.update(
+        {
+            "True": True,
+            "False": False,
+            "None": None,
+            "print": print,
+            "range": range,
+        }
+    )
+
+    namespace: dict[str, Any] = {"__builtins__": safe_builtins}
+    namespace.update(context_vars)
+
+    stdout_capture = io.StringIO()
+    stderr_capture = io.StringIO()
+
+    try:
+        with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+            try:
+                result = eval(compile(code, "<sandbox>", "eval"), namespace)
+                if result is not None:
+                    print(result)
+            except SyntaxError:
+                compiled = compile(code, "<sandbox>", "exec")
+                exec(compiled, namespace)
+
+                code_lines = code.strip().split("\n")
+                last_line = code_lines[-1].strip() if code_lines else ""
+                if last_line and not any(
+                    last_line.startswith(kw)
+                    for kw in ["for", "while", "if", "def", "class", "import", "from"]
+                ):
+                    try:
+                        last_value = eval(compile(last_line, "<sandbox>", "eval"), namespace)
+                        if last_value is not None:
+                            print(last_value)
+                    except Exception:
+                        pass
+
+        output = stdout_capture.getvalue()
+        stderr_output = stderr_capture.getvalue()
+        if stderr_output:
+            output += "\n" + stderr_output
+
+        if len(output) > max_output_chars:
+            output = output[:max_output_chars] + "\n... (output truncated)"
+
+        return {"success": True, "output": output, "error": None}
+    except Exception as e:
+        return {"success": False, "output": "", "error": f"{type(e).__name__}: {str(e)}"}
+    finally:
+        stdout_capture.close()
+        stderr_capture.close()
+
+
+def _subprocess_target(
+    conn: Any,
+    code: str,
+    context_vars: dict[str, Any],
+    allowed_builtins: list[str],
+    max_output_chars: int,
+) -> None:
+    """Multiprocessing target to run sandboxed code and send back result."""
+    try:
+        result = _execute_code_worker(code, context_vars, allowed_builtins, max_output_chars)
+        conn.send(result)
+    except Exception as e:
+        conn.send({"success": False, "output": "", "error": f"{type(e).__name__}: {str(e)}"})
+    finally:
+        conn.close()
+
+
 class SafeExecutor:
     """Safe code executor with sandboxed environment.
 
     Executes Python code in a restricted namespace with prohibited
     operations blocked via AST validation and restricted builtins.
+    This is designed for trusted helper snippets, not adversarial sandboxing.
     """
 
     def __init__(self, config: ReplConfig) -> None:
@@ -172,66 +262,68 @@ class SafeExecutor:
             logger.warning(f"Code validation failed: {e}")
             return _SandboxResult(success=False, output="", error=str(e))
 
-        # Build restricted namespace
-        namespace: dict[str, Any] = {
-            "__builtins__": self._safe_builtins,
-        }
-        namespace.update(context_vars)
+        # Fast path: run in-process if sandboxing disabled.
+        if not self.config.enable_sandbox:
+            result = _execute_code_worker(
+                code, context_vars, self.config.allowed_builtins, self.config.max_output_chars
+            )
+            return _SandboxResult(**result)
 
-        # Capture output
-        stdout_capture = io.StringIO()
-        stderr_capture = io.StringIO()
+        timeout = self.config.execution_timeout_seconds
+        if timeout <= 0:
+            result = _execute_code_worker(
+                code, context_vars, self.config.allowed_builtins, self.config.max_output_chars
+            )
+            return _SandboxResult(**result)
 
+        parent_conn = None
+        child_conn = None
         try:
-            # Execute code with output redirection
-            with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
-                # Try to evaluate as expression first (for single expressions)
-                try:
-                    result = eval(compile(code, "<sandbox>", "eval"), namespace)
-                    if result is not None:
-                        print(result)
-                except SyntaxError:
-                    # Not a simple expression, execute as statements
-                    compiled = compile(code, "<sandbox>", "exec")
-                    exec(compiled, namespace)
+            # Run in a subprocess so we can enforce timeouts safely.
+            start_method = "fork" if "fork" in mp.get_all_start_methods() else "spawn"
+            ctx = mp.get_context(start_method)
+            parent_conn, child_conn = ctx.Pipe(duplex=False)
+            proc = ctx.Process(
+                target=_subprocess_target,
+                args=(
+                    child_conn,
+                    code,
+                    context_vars,
+                    self.config.allowed_builtins,
+                    self.config.max_output_chars,
+                ),
+            )
+            proc.start()
+            child_conn.close()
 
-                    # Try to get the value of the last expression if it's a simple name
-                    # This handles cases like:
-                    # total = 0
-                    # for i in range(5): total += i
-                    # total  <- this should print the value
-                    code_lines = code.strip().split("\n")
-                    last_line = code_lines[-1].strip()
+            proc.join(timeout)
+            if proc.is_alive():
+                proc.terminate()
+                proc.join()
+                return _SandboxResult(
+                    success=False,
+                    output="",
+                    error=f"Execution timed out after {timeout}s",
+                )
 
-                    if last_line and not any(
-                        last_line.startswith(kw)
-                        for kw in ["for", "while", "if", "def", "class", "import", "from"]
-                    ):  # pragma: no branch
-                        try:
-                            last_value = eval(compile(last_line, "<sandbox>", "eval"), namespace)
-                            if last_value is not None:
-                                print(last_value)
-                        except Exception:  # noqa: S110
-                            # Last line wasn't an expression, that's fine
-                            pass
+            if parent_conn.poll():
+                result = parent_conn.recv()
+            else:
+                result = {"success": False, "output": "", "error": "Execution failed with no result"}
 
-            # Get captured output
-            output = stdout_capture.getvalue()
-            stderr_output = stderr_capture.getvalue()
-
-            if stderr_output:
-                output += "\n" + stderr_output
-
-            # Limit output size
-            if len(output) > self.config.max_output_chars:
-                output = output[: self.config.max_output_chars] + "\n... (output truncated)"
-
-            return _SandboxResult(success=True, output=output, error=None)
-
+            return _SandboxResult(**result)
         except Exception as e:
-            logger.warning(f"Code execution failed: {e}")
-            error_msg = f"{type(e).__name__}: {str(e)}"
-            return _SandboxResult(success=False, output="", error=error_msg)
+            logger.warning(
+                f"Subprocess sandbox failed ({type(e).__name__}: {e}); "
+                "falling back to in-process execution."
+            )
+            result = _execute_code_worker(
+                code, context_vars, self.config.allowed_builtins, self.config.max_output_chars
+            )
+            return _SandboxResult(**result)
         finally:
-            stdout_capture.close()
-            stderr_capture.close()
+            if parent_conn is not None:
+                try:
+                    parent_conn.close()
+                except Exception:
+                    pass

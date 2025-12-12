@@ -8,7 +8,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from rec_praxis_rlm.graph.parseltongue_client import (
     ParseltongueClient,
@@ -17,7 +17,7 @@ from rec_praxis_rlm.graph.parseltongue_client import (
 )
 
 
-class CachedParselton gueClient(ParseltongueClient):
+class CachedParseltongueClient(ParseltongueClient):
     """Parseltongue client with aggressive content-hash-based caching.
 
     Cache Strategy:
@@ -32,7 +32,7 @@ class CachedParselton gueClient(ParseltongueClient):
     - Hot cache: <1ms (memory hit)
 
     Example:
-        >>> client = CachedParseltongu eClient()
+        >>> client = CachedParseltongueClient()
         >>> # First call - cache miss, queries Parseltongue
         >>> graph = client.get_call_graph("authenticate")  # ~150ms
         >>> # Second call - cache hit
@@ -58,7 +58,7 @@ class CachedParselton gueClient(ParseltongueClient):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_ttl = cache_ttl
-        self._memory_cache: Dict[str, Tuple[any, float]] = {}
+        self._memory_cache: Dict[str, Tuple[Any, float]] = {}
 
     def _get_content_hash(self, key_components: List[str]) -> str:
         """Generate content hash for cache key.
@@ -72,7 +72,7 @@ class CachedParselton gueClient(ParseltongueClient):
         content = ":".join(str(c) for c in key_components)
         return hashlib.sha256(content.encode()).hexdigest()
 
-    def _check_memory_cache(self, cache_key: str) -> Optional[any]:
+    def _check_memory_cache(self, cache_key: str) -> Optional[Any]:
         """Check in-memory cache.
 
         Args:
@@ -89,7 +89,7 @@ class CachedParselton gueClient(ParseltongueClient):
             del self._memory_cache[cache_key]
         return None
 
-    def _check_disk_cache(self, cache_key: str) -> Optional[any]:
+    def _check_disk_cache(self, cache_key: str) -> Optional[Any]:
         """Check disk cache.
 
         Args:
@@ -112,7 +112,7 @@ class CachedParselton gueClient(ParseltongueClient):
                     cache_file.unlink()
         return None
 
-    def _write_cache(self, cache_key: str, value: any):
+    def _write_cache(self, cache_key: str, value: Any) -> None:
         """Write to both memory and disk cache.
 
         Args:
@@ -277,5 +277,5 @@ class CachedParselton gueClient(ParseltongueClient):
         return {
             "memory_entries": len(self._memory_cache),
             "disk_entries": disk_entries,
-            "total_size_mb": round(total_size / (1024 * 1024), 2)
+            "total_size_mb": total_size / (1024 * 1024)
         }

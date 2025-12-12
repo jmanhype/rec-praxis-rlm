@@ -4,9 +4,9 @@ This module defines the interface contract that all agents must implement
 to work with the CLI tools and IDE integrations.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 
 class Severity(Enum):
@@ -49,6 +49,7 @@ class Finding:
     owasp_category: Optional[OWASPCategory] = None
     cwe_id: Optional[str] = None
     confidence: Optional[float] = None  # 0.0-1.0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         """Convert finding to JSON-serializable dict."""
@@ -63,6 +64,7 @@ class Finding:
             "owasp": self.owasp_category.value if self.owasp_category else None,
             "cwe": self.cwe_id,
             "confidence": self.confidence,
+            "metadata": self.metadata,
         }
 
 

@@ -3,6 +3,7 @@
 import hashlib
 import re
 import sys
+import threading
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import Optional
@@ -19,8 +20,9 @@ try:
     from sentence_transformers import SentenceTransformer
 
     SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:  # pragma: no cover
+except Exception:  # pragma: no cover
     SENTENCE_TRANSFORMERS_AVAILABLE = False
+    SentenceTransformer = None  # type: ignore[assignment]
 finally:
     sys.stdout = _stdout_backup
 
@@ -78,14 +80,21 @@ class SentenceTransformerEmbedding(EmbeddingProvider):
             model_name: Name of the sentence-transformers model to use
             cache_size: Maximum number of embeddings to cache (default: 10,000)
         """
-        if not SENTENCE_TRANSFORMERS_AVAILABLE:
+        if not SENTENCE_TRANSFORMERS_AVAILABLE and SentenceTransformer is None:  # type: ignore[name-defined]
             raise ImportError(
                 "sentence-transformers not installed. "
                 "Install with: pip install sentence-transformers"
             )
-        self.model = SentenceTransformer(model_name)
+        try:
+            self.model = SentenceTransformer(model_name)  # type: ignore[name-defined]
+        except Exception as e:
+            raise ImportError(
+                "Failed to initialize sentence-transformers model. "
+                "Ensure sentence-transformers and its dependencies are installed correctly."
+            ) from e
         self.cache_size = cache_size
         self._cache: OrderedDict[str, list[float]] = OrderedDict()
+        self._cache_lock = threading.Lock()
 
     def _get_cache_key(self, text: str) -> str:
         """Generate cache key from text using SHA256 hash.
@@ -109,10 +118,12 @@ class SentenceTransformerEmbedding(EmbeddingProvider):
         """
         # Check cache
         cache_key = self._get_cache_key(text)
-        if cache_key in self._cache:
-            # Cache hit - move to end (most recent)
-            self._cache.move_to_end(cache_key)
-            return self._cache[cache_key]
+        with self._cache_lock:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                # Cache hit - move to end (most recent)
+                self._cache.move_to_end(cache_key)
+                return cached
 
         # Cache miss - compute embedding
         embeddings = self.model.encode([text], convert_to_numpy=True, show_progress_bar=False)
@@ -123,10 +134,11 @@ class SentenceTransformerEmbedding(EmbeddingProvider):
             embedding = embeddings[0].tolist()
 
         # Add to cache (LRU eviction)
-        self._cache[cache_key] = embedding
-        if len(self._cache) > self.cache_size:
-            # Evict oldest entry (FIFO when cache is full)
-            self._cache.popitem(last=False)
+        with self._cache_lock:
+            self._cache[cache_key] = embedding
+            if len(self._cache) > self.cache_size:
+                # Evict oldest entry (FIFO when cache is full)
+                self._cache.popitem(last=False)
 
         return embedding
 
@@ -145,14 +157,16 @@ class SentenceTransformerEmbedding(EmbeddingProvider):
         # Check cache for each text
         for i, text in enumerate(texts):
             cache_key = self._get_cache_key(text)
-            if cache_key in self._cache:
-                # Cache hit
-                self._cache.move_to_end(cache_key)
-                results.append(self._cache[cache_key])
-            else:
-                # Cache miss - mark for computation
-                results.append([])  # Placeholder
-                to_compute.append((i, text))
+            with self._cache_lock:
+                cached = self._cache.get(cache_key)
+                if cached is not None:
+                    # Cache hit
+                    self._cache.move_to_end(cache_key)
+                    results.append(cached)
+                    continue
+            # Cache miss - mark for computation
+            results.append([])  # Placeholder
+            to_compute.append((i, text))
 
         # Compute uncached embeddings in batch
         if to_compute:
@@ -170,9 +184,10 @@ class SentenceTransformerEmbedding(EmbeddingProvider):
             for (index, text), embedding in zip(to_compute, computed):
                 results[index] = embedding
                 cache_key = self._get_cache_key(text)
-                self._cache[cache_key] = embedding
-                if len(self._cache) > self.cache_size:
-                    self._cache.popitem(last=False)
+                with self._cache_lock:
+                    self._cache[cache_key] = embedding
+                    if len(self._cache) > self.cache_size:
+                        self._cache.popitem(last=False)
 
         return results
 
@@ -204,6 +219,7 @@ class APIEmbedding(EmbeddingProvider):
         self.model_name = model_name
         self.cache_size = cache_size
         self._cache: OrderedDict[str, list[float]] = OrderedDict()
+        self._cache_lock = threading.Lock()
 
         if self.api_provider == "openai":
             if not OPENAI_AVAILABLE:
@@ -235,20 +251,23 @@ class APIEmbedding(EmbeddingProvider):
         """
         # Check cache
         cache_key = self._get_cache_key(text)
-        if cache_key in self._cache:
-            # Cache hit - move to end (most recent)
-            self._cache.move_to_end(cache_key)
-            return self._cache[cache_key]
+        with self._cache_lock:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                # Cache hit - move to end (most recent)
+                self._cache.move_to_end(cache_key)
+                return cached
 
         # Cache miss - call API
         response = self.client.embeddings.create(input=[text], model=self.model_name)
         embedding = response.data[0].embedding
 
         # Add to cache (LRU eviction)
-        self._cache[cache_key] = embedding
-        if len(self._cache) > self.cache_size:
-            # Evict oldest entry (FIFO when cache is full)
-            self._cache.popitem(last=False)
+        with self._cache_lock:
+            self._cache[cache_key] = embedding
+            if len(self._cache) > self.cache_size:
+                # Evict oldest entry (FIFO when cache is full)
+                self._cache.popitem(last=False)
 
         return embedding
 
@@ -267,14 +286,16 @@ class APIEmbedding(EmbeddingProvider):
         # Check cache for each text
         for i, text in enumerate(texts):
             cache_key = self._get_cache_key(text)
-            if cache_key in self._cache:
-                # Cache hit
-                self._cache.move_to_end(cache_key)
-                results.append(self._cache[cache_key])
-            else:
-                # Cache miss - mark for API call
-                results.append([])  # Placeholder
-                to_compute.append((i, text))
+            with self._cache_lock:
+                cached = self._cache.get(cache_key)
+                if cached is not None:
+                    # Cache hit
+                    self._cache.move_to_end(cache_key)
+                    results.append(cached)
+                    continue
+            # Cache miss - mark for API call
+            results.append([])  # Placeholder
+            to_compute.append((i, text))
 
         # Compute uncached embeddings via API batch call
         if to_compute:
@@ -286,9 +307,10 @@ class APIEmbedding(EmbeddingProvider):
             for (index, text), embedding in zip(to_compute, computed):
                 results[index] = embedding
                 cache_key = self._get_cache_key(text)
-                self._cache[cache_key] = embedding
-                if len(self._cache) > self.cache_size:
-                    self._cache.popitem(last=False)
+                with self._cache_lock:
+                    self._cache[cache_key] = embedding
+                    if len(self._cache) > self.cache_size:
+                        self._cache.popitem(last=False)
 
         return results
 

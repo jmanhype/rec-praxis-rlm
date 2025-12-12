@@ -213,6 +213,51 @@ class TestJSONLPersistence:
                 lines = f.readlines()
             assert len(lines) == 3
 
+    def test_concurrent_store_appends_without_corruption(self) -> None:
+        """Concurrent store() calls should not corrupt JSONL."""
+        import json
+        import hashlib
+        from concurrent.futures import ThreadPoolExecutor
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = os.path.join(tmpdir, "memory.jsonl")
+            config = MemoryConfig(storage_path=storage_path, embedding_model="")
+            memory = ProceduralMemory(config, use_faiss=False, enable_privacy_redaction=False)
+
+            num_threads = 8
+            per_thread = 5
+
+            def worker(tid: int) -> None:
+                for i in range(per_thread):
+                    exp = Experience(
+                        env_features=[f"t{tid}", f"i{i}"],
+                        goal=f"goal-{tid}-{i}",
+                        action="action",
+                        result="result",
+                        success=True,
+                        timestamp=time.time(),
+                    )
+                    memory.store(exp)
+
+            with ThreadPoolExecutor(max_workers=num_threads) as ex:
+                list(ex.map(worker, range(num_threads)))
+
+            with open(storage_path, "r", encoding="utf-8") as f:
+                lines = [ln.strip() for ln in f if ln.strip()]
+
+            assert json.loads(lines[0])["__version__"] == "2.0"
+            data_lines = lines[1:]
+            assert len(data_lines) == num_threads * per_thread
+
+            goals: list[str] = []
+            for line in data_lines:
+                checksum, json_data = line.split("|", 1)
+                assert hashlib.sha256(json_data.encode()).hexdigest() == checksum
+                obj = json.loads(json_data)
+                goals.append(obj["goal"])
+
+            assert len(set(goals)) == len(goals)
+
     def test_load_parses_all_lines(self) -> None:
         """Test that load() parses all JSONL lines."""
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -27,6 +27,7 @@ from io import StringIO
 warnings.filterwarnings("ignore")
 
 from rec_praxis_rlm import __version__
+from rec_praxis_rlm.constants import SEVERITY_ORDER_BY_NAME, SEVERITY_ICONS_BY_NAME
 
 # Restore stdout after imports complete
 sys.stdout = _original_stdout
@@ -107,8 +108,7 @@ def run_iterative_improvement(
     # Track progress across iterations
     iteration_history = []
     current_score = 0.0
-    severity_order = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
-    threshold = severity_order[severity]
+    threshold = SEVERITY_ORDER_BY_NAME[severity]
 
     # Read files once
     files_content = {}
@@ -136,7 +136,7 @@ def run_iterative_improvement(
         # Filter by severity threshold
         blocking_findings = [
             f for f in all_findings
-            if severity_order[f.severity.name] >= threshold
+            if SEVERITY_ORDER_BY_NAME[f.severity.name] >= threshold
         ]
 
         # Display results
@@ -362,11 +362,10 @@ def cli_code_review() -> int:
         all_findings.extend(findings)
 
     # Filter by severity threshold
-    severity_order = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
-    threshold = severity_order[args.severity]
+    threshold = SEVERITY_ORDER_BY_NAME[args.severity]
     blocking_findings = [
         f for f in all_findings
-        if severity_order[f.severity.name] >= threshold
+        if SEVERITY_ORDER_BY_NAME[f.severity.name] >= threshold
     ]
 
     # Output results
@@ -393,8 +392,8 @@ def cli_code_review() -> int:
         if all_findings:
             print(f"\n🔍 Code Review Results: {len(all_findings)} issue(s) found\n")
             for f in all_findings:
-                icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFO": "ℹ️"}
-                print(f"{icon[f.severity.name]} {f.severity.name}: {f.title}")
+                icon = SEVERITY_ICONS_BY_NAME.get(f.severity.name, "")
+                print(f"{icon} {f.severity.name}: {f.title}")
                 print(f"   File: {f.file_path}:{f.line_number}")
                 print(f"   Issue: {f.description}")
                 print(f"   Fix: {f.remediation}\n")
@@ -511,11 +510,10 @@ def cli_security_audit() -> int:
     report = agent.generate_audit_report(files_content)
 
     # Filter by fail-on threshold
-    severity_order = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
-    threshold = severity_order[args.fail_on]
+    threshold = SEVERITY_ORDER_BY_NAME[args.fail_on]
     blocking_findings = [
         f for f in report.findings
-        if severity_order[f.severity.name] >= threshold
+        if SEVERITY_ORDER_BY_NAME[f.severity.name] >= threshold
     ]
 
     # Output results
@@ -657,13 +655,12 @@ def cli_dependency_scan() -> int:
     )
 
     # Filter by fail-on threshold
-    severity_order = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
-    threshold = severity_order[args.fail_on]
+    threshold = SEVERITY_ORDER_BY_NAME[args.fail_on]
 
     all_findings = cve_findings + secret_findings
     blocking_findings = [
         f for f in all_findings
-        if severity_order[f.severity.name] >= threshold
+        if SEVERITY_ORDER_BY_NAME[f.severity.name] >= threshold
     ]
 
     # Output results
@@ -795,11 +792,10 @@ def cli_pr_review() -> int:
     all_findings = code_findings + security_report.findings
 
     # Filter by severity
-    severity_order = {"INFO": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
-    threshold = severity_order[args.severity]
+    threshold = SEVERITY_ORDER_BY_NAME[args.severity]
     filtered_findings = [
         f for f in all_findings
-        if severity_order[f.severity.name] >= threshold
+        if SEVERITY_ORDER_BY_NAME[f.severity.name] >= threshold
     ]
 
     if not filtered_findings:

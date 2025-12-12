@@ -27,6 +27,7 @@ Usage:
 
 import sqlite3
 import re
+import threading
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -87,6 +88,7 @@ class FactStore:
             Path(storage_path).parent.mkdir(parents=True, exist_ok=True)
 
         self.conn = sqlite3.connect(storage_path, check_same_thread=False)
+        self._lock = threading.Lock()
         self._init_schema()
 
     def _validate_storage_path(self, path: str) -> None:
@@ -341,19 +343,20 @@ class FactStore:
 
     def _save_fact(self, fact: Fact):
         """Persist fact to database."""
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            INSERT INTO fact_store (key, value, category, evidence, source_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            fact.key,
-            fact.value,
-            fact.category,
-            fact.evidence,
-            fact.source_id,
-            fact.created_at
-        ))
-        self.conn.commit()
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                INSERT INTO fact_store (key, value, category, evidence, source_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                fact.key,
+                fact.value,
+                fact.category,
+                fact.evidence,
+                fact.source_id,
+                fact.created_at
+            ))
+            self.conn.commit()
 
     def query(
         self,
@@ -371,38 +374,41 @@ class FactStore:
         Returns:
             List of matching Fact objects, sorted by recency
         """
-        cursor = self.conn.cursor()
-
         # Escape wildcards to prevent SQL injection
         escaped_query = self._escape_like_wildcards(query)
 
-        if category:
-            cursor.execute("""
-                SELECT key, value, category, evidence, source_id, created_at
-                FROM fact_store
-                WHERE (key LIKE ? OR value LIKE ?) AND category = ?
-                ORDER BY created_at DESC
-                LIMIT ?
-            """, (f"%{escaped_query}%", f"%{escaped_query}%", category, limit))
-        else:
-            cursor.execute("""
-                SELECT key, value, category, evidence, source_id, created_at
-                FROM fact_store
-                WHERE key LIKE ? OR value LIKE ?
-                ORDER BY created_at DESC
-                LIMIT ?
-            """, (f"%{escaped_query}%", f"%{escaped_query}%", limit))
+        with self._lock:
+            cursor = self.conn.cursor()
+            if category:
+                cursor.execute("""
+                    SELECT key, value, category, evidence, source_id, created_at
+                    FROM fact_store
+                    WHERE (key LIKE ? ESCAPE '\\' OR value LIKE ? ESCAPE '\\') AND category = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (f"%{escaped_query}%", f"%{escaped_query}%", category, limit))
+            else:
+                cursor.execute("""
+                    SELECT key, value, category, evidence, source_id, created_at
+                    FROM fact_store
+                    WHERE key LIKE ? ESCAPE '\\' OR value LIKE ? ESCAPE '\\'
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (f"%{escaped_query}%", f"%{escaped_query}%", limit))
 
-        facts = []
-        for row in cursor.fetchall():
-            facts.append(Fact(
+            rows = cursor.fetchall()
+
+        facts = [
+            Fact(
                 key=row[0],
                 value=row[1],
                 category=row[2],
                 evidence=row[3],
                 source_id=row[4],
-                created_at=row[5]
-            ))
+                created_at=row[5],
+            )
+            for row in rows
+        ]
 
         return facts
 
@@ -415,16 +421,17 @@ class FactStore:
         Returns:
             Most recent Fact object or None
         """
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            SELECT key, value, category, evidence, source_id, created_at
-            FROM fact_store
-            WHERE key = ?
-            ORDER BY created_at DESC
-            LIMIT 1
-        """, (key,))
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT key, value, category, evidence, source_id, created_at
+                FROM fact_store
+                WHERE key = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (key,))
 
-        row = cursor.fetchone()
+            row = cursor.fetchone()
         if not row:
             return None
 
@@ -447,43 +454,46 @@ class FactStore:
         Returns:
             List of Fact objects
         """
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            SELECT key, value, category, evidence, source_id, created_at
-            FROM fact_store
-            WHERE category = ?
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (category, limit))
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT key, value, category, evidence, source_id, created_at
+                FROM fact_store
+                WHERE category = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (category, limit))
+            rows = cursor.fetchall()
 
-        facts = []
-        for row in cursor.fetchall():
-            facts.append(Fact(
+        return [
+            Fact(
                 key=row[0],
                 value=row[1],
                 category=row[2],
                 evidence=row[3],
                 source_id=row[4],
-                created_at=row[5]
-            ))
-
-        return facts
+                created_at=row[5],
+            )
+            for row in rows
+        ]
 
     def count_facts(self) -> int:
         """Count total number of facts stored."""
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM fact_store")
-        return cursor.fetchone()[0]
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM fact_store")
+            return cursor.fetchone()[0]
 
     def close(self):
         """Close database connection."""
         if hasattr(self, 'conn') and self.conn is not None:
-            try:
-                self.conn.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
-            finally:
-                self.conn = None
+            with self._lock:
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass  # Ignore errors during cleanup
+                finally:
+                    self.conn = None
 
     def __del__(self):
         """Destructor to ensure connection is closed."""
