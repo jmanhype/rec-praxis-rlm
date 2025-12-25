@@ -20,9 +20,10 @@
 4. [Critical Assumption Analysis](#4-critical-assumption-analysis)
 5. [Trade-off Evaluation Matrix](#5-trade-off-evaluation-matrix)
 6. [Edge Cases and Failure Modes](#6-edge-cases-and-failure-modes)
-7. [Implementation Roadmap](#7-implementation-roadmap)
-8. [Success Metrics and Validation](#8-success-metrics-and-validation)
-9. [Appendices](#9-appendices)
+7. [Context Engineering and Caching](#7-context-engineering-and-caching)
+8. [Implementation Roadmap](#8-implementation-roadmap)
+9. [Success Metrics and Validation](#9-success-metrics-and-validation)
+10. [Appendices](#10-appendices)
 
 ---
 
@@ -1174,9 +1175,331 @@ IF goal is "quick win with low risk":
 
 ---
 
-## 7. Implementation Roadmap
+## 7. Context Engineering and Caching
 
-### 7.1 Phase 1: Foundation (Weeks 1-3)
+> "As long as attention is quadratic you have no choice but to context engineer" — @irl_danB
+
+### 7.1 The Quadratic Attention Problem
+
+Context management is not optional—it's fundamental. Every token in the context window participates in O(n²) attention computations. This has critical implications for our metacognitive enhancements:
+
+| Context Size | Relative Compute | Implication |
+|--------------|------------------|-------------|
+| 2k tokens | 1x | Baseline |
+| 8k tokens | 16x | Noticeable latency |
+| 32k tokens | 256x | Expensive per call |
+| 128k tokens | 4096x | Cost-prohibitive for iteration |
+
+**Key Insight**: Distilling 10 experiences (25k tokens) into 3 behaviors (500 tokens) isn't just about storage—it's 2500x less compute per attention layer.
+
+### 7.2 Prompt Caching Considerations
+
+Modern LLM APIs (Anthropic, OpenAI) support prompt caching where repeated prefixes are computed once. Our distillation strategy must be **cache-aware**:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ CACHE-FRIENDLY ARCHITECTURE                             │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Static Base (Cached)          Dynamic Suffix           │
+│  ─────────────────────         ──────────────────       │
+│  ┌─────────────────────┐       ┌──────────────────┐     │
+│  │ System Prompt       │       │ Current Goal     │     │
+│  │ Core Behaviors      │       │ Retrieved Context│     │
+│  │ Skill Taxonomy      │       │ Recent History   │     │
+│  │ Tool Definitions    │       │ User Query       │     │
+│  └─────────────────────┘       └──────────────────┘     │
+│         ↑                              ↑                │
+│    STABLE (cache hit)          VARIABLE (recomputed)    │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Cache-Busting Anti-Patterns
+
+| Pattern | Why It Busts Cache | Mitigation |
+|---------|-------------------|------------|
+| Behaviors in dynamic section | Changes per request | Move to static base |
+| Timestamp in prompt | Always unique | Remove or put at end |
+| Random behavior ordering | Order changes | Deterministic sort |
+| Recursive compaction | Modifies base | Compact to separate layer |
+
+#### Recommended Cache Strategy
+
+```python
+class CacheAwarePromptBuilder:
+    """Builds prompts that maximize cache utilization."""
+
+    def __init__(self, handbook: BehaviorHandbook):
+        self.handbook = handbook
+        self._static_base: Optional[str] = None
+        self._base_hash: Optional[str] = None
+
+    def build_prompt(
+        self,
+        goal: str,
+        env_features: List[str],
+        retrieved_behaviors: List[Behavior]
+    ) -> Tuple[str, str]:
+        """
+        Returns (static_prefix, dynamic_suffix) for cache-aware calling.
+
+        The static prefix should be passed with cache_control markers.
+        """
+        # Static base: rebuild only when handbook changes
+        if self._needs_base_rebuild():
+            self._static_base = self._build_static_base()
+
+        # Dynamic suffix: changes per request
+        dynamic_suffix = self._build_dynamic_suffix(
+            goal, env_features, retrieved_behaviors
+        )
+
+        return self._static_base, dynamic_suffix
+
+    def _build_static_base(self) -> str:
+        """Build cacheable prefix with core behaviors."""
+        core_behaviors = self.handbook.get_core_behaviors(limit=20)
+        return f"""## Core Behaviors (Always Available)
+{self._format_behaviors(core_behaviors)}
+
+## Available Tools
+{self._format_tools()}
+"""
+
+    def _build_dynamic_suffix(
+        self,
+        goal: str,
+        env_features: List[str],
+        behaviors: List[Behavior]
+    ) -> str:
+        """Build per-request suffix."""
+        return f"""## Current Task
+Goal: {goal}
+Environment: {', '.join(env_features)}
+
+## Retrieved Behaviors (Task-Specific)
+{self._format_behaviors(behaviors)}
+
+## Your Response
+"""
+```
+
+### 7.3 Recursive Compaction Strategy
+
+When context grows too large, we need compaction. But naive compaction busts the cache. Solution: **layered compaction with stable bases**.
+
+```
+Level 0: Raw Experiences (not in context)
+    ↓ distill
+Level 1: Behaviors (20 core in static base)
+    ↓ retrieve
+Level 2: Task-Specific Behaviors (3-5 in dynamic suffix)
+    ↓ summarize (if still too large)
+Level 3: Compressed Summaries (last resort)
+```
+
+#### Compaction Hook Interface
+
+Inspired by pi-coding-agent's custom compaction hooks:
+
+```python
+class CompactionHook(Protocol):
+    """Interface for custom compaction strategies."""
+
+    def should_compact(self, context_tokens: int, budget: int) -> bool:
+        """Decide if compaction is needed."""
+        ...
+
+    def compact(
+        self,
+        context: List[Message],
+        target_tokens: int
+    ) -> List[Message]:
+        """Perform compaction, preserving critical information."""
+        ...
+
+    def preserves_cache(self) -> bool:
+        """Whether this compaction strategy preserves prompt cache."""
+        ...
+
+class BehaviorAwareCompactor(CompactionHook):
+    """Compactor that summarizes to behaviors, preserving cache."""
+
+    def __init__(self, distiller: BehaviorDistiller):
+        self.distiller = distiller
+
+    def compact(
+        self,
+        context: List[Message],
+        target_tokens: int
+    ) -> List[Message]:
+        # Extract experiences from context
+        experiences = self._extract_experiences(context)
+
+        # Distill to behaviors (if enough patterns)
+        if len(experiences) >= 3:
+            behaviors = self.distiller.distill_from_experiences(experiences)
+            # Replace verbose experiences with behavior references
+            return self._replace_with_behaviors(context, behaviors)
+
+        # Fallback to summary compaction
+        return self._summarize_context(context, target_tokens)
+
+    def preserves_cache(self) -> bool:
+        return True  # Only modifies dynamic section
+```
+
+### 7.4 Subagent Context Isolation
+
+Multiple subagents sharing context is expensive. Better patterns:
+
+#### Pattern 1: Worktree + Brief Handoff
+
+From @shakermanjonas: "write up a feature brief, create a worktree, launch a terminal with claude code and the brief"
+
+```python
+@dataclass
+class SubagentBrief:
+    """Minimal context handoff to subagent."""
+    task_summary: str           # < 200 words
+    relevant_files: List[str]   # Paths only, not contents
+    behaviors_to_apply: List[str]  # Behavior names/IDs
+    success_criteria: List[str]
+    parent_session_id: str      # For result reporting
+
+class BriefBasedSubagentLauncher:
+    """Launch subagents with minimal context via briefs."""
+
+    def launch(
+        self,
+        brief: SubagentBrief,
+        working_directory: Path
+    ) -> SubagentHandle:
+        # Write brief to file (subagent reads on startup)
+        brief_path = working_directory / ".claude-brief.json"
+        brief_path.write_text(brief.to_json())
+
+        # Launch subagent in isolated environment
+        # Subagent loads brief + retrieves its own context
+        return self._spawn_subprocess(
+            working_directory,
+            init_command=f"Read .claude-brief.json and begin task"
+        )
+```
+
+#### Pattern 2: tmux-Based Orchestration
+
+From @ashot: "use tmux to call subagents"
+
+```python
+class TmuxSubagentOrchestrator:
+    """Orchestrate subagents via tmux sessions."""
+
+    def __init__(self, session_prefix: str = "praxis"):
+        self.session_prefix = session_prefix
+        self.active_agents: Dict[str, TmuxPane] = {}
+
+    def spawn_agent(
+        self,
+        agent_id: str,
+        task: str,
+        handbook: BehaviorHandbook
+    ) -> str:
+        """Spawn a subagent in a new tmux pane."""
+        session_name = f"{self.session_prefix}-{agent_id}"
+
+        # Create isolated session
+        subprocess.run([
+            "tmux", "new-session", "-d", "-s", session_name
+        ])
+
+        # Inject minimal context via environment
+        relevant_behaviors = handbook.search(task, top_k=3)
+        behavior_ids = ",".join(b.id for b in relevant_behaviors)
+
+        # Launch agent with behavior hints
+        subprocess.run([
+            "tmux", "send-keys", "-t", session_name,
+            f"PRAXIS_BEHAVIORS={behavior_ids} claude-code --task '{task}'",
+            "Enter"
+        ])
+
+        self.active_agents[agent_id] = session_name
+        return session_name
+
+    def collect_result(self, agent_id: str) -> Optional[str]:
+        """Collect result from completed subagent."""
+        # Read from subagent's output file or shared memory
+        pass
+```
+
+#### Pattern 3: Skills with Params (Avoid Bash Mishaps)
+
+From @nexsection: "switching to scripts with params in skills so they don't non-deterministically screw up the bashing of their sub-agents"
+
+```python
+@dataclass
+class ParameterizedSkill:
+    """Skill that executes via structured params, not bash."""
+    name: str
+    description: str
+    parameters: Dict[str, ParameterSpec]
+    executor: Callable[[Dict[str, Any]], SkillResult]
+
+    def execute(self, params: Dict[str, Any]) -> SkillResult:
+        """Execute with validated params—no bash parsing."""
+        validated = self._validate_params(params)
+        return self.executor(validated)
+
+# Example: Safe subagent invocation
+explore_skill = ParameterizedSkill(
+    name="explore_codebase",
+    description="Spawn explorer subagent for codebase questions",
+    parameters={
+        "query": ParameterSpec(type=str, required=True),
+        "depth": ParameterSpec(type=str, enum=["quick", "medium", "thorough"]),
+        "paths": ParameterSpec(type=List[str], default=["."])
+    },
+    executor=lambda p: spawn_explorer_agent(p["query"], p["depth"], p["paths"])
+)
+```
+
+### 7.5 Context Budget Allocation
+
+For a 128k context window, recommended allocation:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Context Budget (128k)                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  System + Tools (cached)     │████████│          8k (6%)   │
+│  Core Behaviors (cached)     │████████████│     12k (9%)   │
+│  Retrieved Behaviors         │████│              4k (3%)   │
+│  Current Files/Context       │████████████████│ 32k (25%)  │
+│  Conversation History        │████████████████│ 32k (25%)  │
+│  Working Memory (scratch)    │████████████████│ 32k (25%)  │
+│  Safety Buffer               │████│              8k (6%)   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 7.6 Assumptions and Risks
+
+| Assumption | Risk | Validation |
+|------------|------|------------|
+| Prompt caching is available | Medium | May not work with all providers |
+| Static base remains stable | Low | Track base changes per session |
+| Subagent isolation reduces cost | Medium | Measure actual token savings |
+| tmux is available | Low | Fallback to subprocess |
+| Brief handoff is sufficient | High | May need more context for complex tasks |
+
+---
+
+## 8. Implementation Roadmap
+
+### 8.1 Phase 1: Foundation (Weeks 1-3)
 
 **Goal**: Establish handbook infrastructure and basic distillation
 
@@ -1202,7 +1525,7 @@ Tasks:
 - Search latency < 100ms for 1000 behaviors
 - Progressive disclosure reduces tokens by 50%+
 
-### 7.2 Phase 2: Distillation Pipeline (Weeks 4-6)
+### 8.2 Phase 2: Distillation Pipeline (Weeks 4-6)
 
 **Goal**: Implement LLM-based behavior distillation
 
@@ -1229,7 +1552,7 @@ Tasks:
 - Distilled behaviors are 10-20x smaller than source experiences
 - Validation catches 90%+ of bad behaviors
 
-### 7.3 Phase 3: Skill Labeling (Weeks 7-8)
+### 8.3 Phase 3: Skill Labeling (Weeks 7-8)
 
 **Goal**: Add hierarchical skill taxonomy
 
@@ -1253,7 +1576,7 @@ Tasks:
 - Taxonomy covers 90%+ of common skills
 - Label-enhanced search improves precision by 15%+
 
-### 7.4 Phase 4: Revision Loops (Weeks 9-11)
+### 8.4 Phase 4: Revision Loops (Weeks 9-11)
 
 **Goal**: Implement self-improvement with behavior injection
 
@@ -1278,7 +1601,7 @@ Tasks:
 - Token overhead < 50% compared to single attempt
 - Escalation rate < 10%
 
-### 7.5 Phase 5: Subagent Generation (Weeks 12-14)
+### 8.5 Phase 5: Subagent Generation (Weeks 12-14)
 
 **Goal**: Enable automated skill generation with human review
 
@@ -1303,7 +1626,7 @@ Tasks:
 - Sandbox prevents all unauthorized access
 - Human review takes < 2 minutes per skill
 
-### 7.6 Phase 6: Integration and Optimization (Weeks 15-16)
+### 8.6 Phase 6: Integration and Optimization (Weeks 15-16)
 
 **Goal**: Full system integration and performance optimization
 
@@ -1329,9 +1652,9 @@ Tasks:
 
 ---
 
-## 8. Success Metrics and Validation
+## 9. Success Metrics and Validation
 
-### 8.1 Quantitative Metrics
+### 9.1 Quantitative Metrics
 
 | Metric | Baseline | Target | Measurement Method |
 |--------|----------|--------|-------------------|
@@ -1342,7 +1665,7 @@ Tasks:
 | Distillation validity rate | N/A | 80% | Validation layer pass rate |
 | Memory scalability | 10k exp | 100k | Load test |
 
-### 8.2 Qualitative Metrics
+### 9.2 Qualitative Metrics
 
 | Metric | Evaluation Method |
 |--------|-------------------|
@@ -1352,7 +1675,7 @@ Tasks:
 | Revision trace clarity | Debugging session evaluation |
 | Documentation completeness | Checklist audit |
 
-### 8.3 Validation Benchmarks
+### 9.3 Validation Benchmarks
 
 **Recommended Benchmarks**:
 
@@ -1368,7 +1691,7 @@ Tasks:
 4. **Custom CodeReview benchmark** (internal):
    - Measure: False positive rate, finding quality
 
-### 8.4 Regression Testing
+### 9.4 Regression Testing
 
 ```python
 # Test suite structure
@@ -1394,7 +1717,7 @@ tests/
 
 ---
 
-## 9. Appendices
+## 10. Appendices
 
 ### 9.1 Glossary
 
