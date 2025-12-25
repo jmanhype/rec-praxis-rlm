@@ -1841,6 +1841,73 @@ Before building the full spec, we should:
 3. **A/B test distillation**: Compare distilled vs. compressed experiences
 4. **Collect failure modes**: Run distillation on 100 experiences, review quality
 
+### Industry Research: Validated User Pain Points (December 2025)
+
+Web search conducted to validate assumptions against real user data:
+
+#### Token/Context Pain Points (Validated ✓)
+
+| Finding | Source | Implication for RecPraxis |
+|---------|--------|---------------------------|
+| Enterprise platforms handle 100K+ tokens, budget options struggle beyond 32K | [Pragmatic Coders AI Agent Statistics](https://www.pragmaticcoders.com/resources/ai-agent-statistics) | Distillation value depends on user tier |
+| Despite 200k token claims, usable context often 70k-120k due to internal truncation | [Northflank Claude Code vs Cursor](https://northflank.com/blog/claude-code-vs-cursor-comparison) | Real context is smaller than advertised |
+| GitHub Copilot: 8,192 tokens in practice vs 1M claimed | [Augment Code Comparison](https://www.augmentcode.com/guides/ai-code-comparison-github-copilot-vs-cursor-vs-claude-code) | Context limits are economic, not technical |
+| Memory-enabled systems: 78% → 94% task completion over 6 months | [Axis Intelligence Review](https://axis-intelligence.com/agentic-ai-agent-honest-reviews-2025-explain) | **Strong validation for procedural memory** |
+
+#### Developer Adoption Barriers (Validated ✓)
+
+| Finding | Source | Implication |
+|---------|--------|-------------|
+| 52% of developers don't use agents or stick to simpler AI tools | [Stack Overflow 2025 Survey](https://survey.stackoverflow.co/2025/ai) | Complexity is a barrier |
+| 62% of enterprises lack clear starting point for AI agents | [Lyzr State of AI Agents](https://www.lyzr.ai/state-of-ai-agents/) | Need simpler onboarding |
+| 87% concerned about accuracy, 81% about security/privacy | [Stack Overflow 2025](https://survey.stackoverflow.co/2025/ai) | Trust is critical |
+| 32% stall after pilot, never reach production | [Arcade Dev Adoption Trends](https://blog.arcade.dev/agentic-framework-adoption-trends) | MVP must prove value fast |
+
+#### Memory/Learning Pain Points (Validated ✓)
+
+| Finding | Source | Implication |
+|---------|--------|-------------|
+| "LLMs lack memory-consolidation to integrate learned experiences over time" | [arXiv: Procedural Memory Limitations](https://arxiv.org/html/2505.03434v1) | **Core problem RecPraxis solves** |
+| Current approaches "capture only surface-level recaps rather than structured knowledge" | [arXiv: Procedural Memory](https://arxiv.org/html/2505.03434v1) | Distillation adds structure |
+| PRAXIS paper: "most LLM agents lack mechanisms to acquire procedural knowledge after deployment" | [arXiv: PRAXIS](https://arxiv.org/html/2511.22074) | **Direct validation of our approach** |
+| Mem^p: "distills trajectories into step-by-step instructions and script-like abstractions" | [arXiv: Mem^p](https://arxiv.org/html/2508.06433v2) | Similar to our behavior distillation |
+
+#### Cost/Usage Pain Points (Validated ✓)
+
+| Finding | Source | Implication |
+|---------|--------|-------------|
+| "Usage limits remain a significant pain point vs competitors' unlimited offerings" | [AI Tool Analysis](https://aitoolanalysis.com/claude-code/) | Token efficiency matters |
+| Claude Code Pro: $100-200/month for serious users | [AI Tool Analysis](https://aitoolanalysis.com/claude-code/) | ROI must be clear |
+| Organizations should "optimize workflows to minimize API calls and token usage" | [McKinsey State of AI](https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-state-of-ai) | Explicit recommendation for our approach |
+
+#### Competitive Landscape
+
+| Tool | Memory Approach | RecPraxis Advantage |
+|------|-----------------|---------------------|
+| Cursor 2.0 | "Memories" feature for persistent context | RecPraxis: Structured procedural memory, not just context |
+| LangChain | Redis/ChromaDB for memory (43%/20% adoption) | RecPraxis: Domain-specific memory with FAISS |
+| Claude Code | CLAUDE.md but "doesn't do a good job remembering" | RecPraxis: Queryable, scored experience retrieval |
+
+#### Key Validation Outcomes
+
+**What the research confirms:**
+1. ✅ Context/token limits are real pain points (not just theoretical)
+2. ✅ Memory-enabled systems outperform non-memory systems significantly
+3. ✅ Current "memory" solutions are superficial (summaries, not structured)
+4. ✅ Procedural knowledge acquisition post-deployment is a known gap
+5. ✅ Cost/usage limits drive need for efficiency
+
+**What the research challenges:**
+1. ⚠️ 52% of developers don't use agents at all → Is our target market big enough?
+2. ⚠️ 32% stall after pilot → MVP must prove value in first week
+3. ⚠️ Complexity is a barrier → Our 5-system proposal may be too complex
+
+**Revised recommendation based on research:**
+- The pain points are validated, but adoption barriers are high
+- Focus on **immediate, tangible value** (not theoretical token savings)
+- Make procedural memory **invisible** (auto-capture, auto-retrieve)
+- Defer distillation until basic memory proves value
+
 ### Revised Success Criteria
 
 | Metric | Original Target | Revised Target | Rationale |
