@@ -23,7 +23,8 @@
 7. [Context Engineering and Caching](#7-context-engineering-and-caching)
 8. [Implementation Roadmap](#8-implementation-roadmap)
 9. [Success Metrics and Validation](#9-success-metrics-and-validation)
-10. [Appendices](#10-appendices)
+10. [Self-Critique: Honest Assessment](#self-critique-honest-assessment-of-this-specification)
+11. [Appendices](#11-appendices)
 
 ---
 
@@ -1717,9 +1718,143 @@ tests/
 
 ---
 
-## 10. Appendices
+## Self-Critique: Honest Assessment of This Specification
 
-### 9.1 Glossary
+> Applying the Reflexion pattern: What are we getting wrong?
+
+### Identified Flaws
+
+#### Flaw 1: Overengineering Risk (Severity: HIGH)
+
+**Problem**: This spec proposes 5 new systems for a v0.9.2 product:
+- BehaviorHandbook
+- BehaviorDistiller
+- SkillLabeler
+- SelfImprovingPlanner
+- SkillGenerationSubagent
+
+**Reality check**: The current system already has:
+- ObservationCompressor (80-90% token reduction)
+- Progressive disclosure (3-layer retrieval)
+- Concept tagging (semantic extraction)
+- Experience classification (4 types)
+
+**Question we should ask**: Do users actually need behavior distillation, or is compression sufficient?
+
+**Mitigation**: Define an MVP that adds the smallest valuable increment. Recommendation: Start with BehaviorHandbook + manual behavior creation (no distillation).
+
+#### Flaw 2: Unvalidated Token Savings Claims (Severity: HIGH)
+
+**Problem**: We cite "46% token savings" from arXiv:2509.13237, but:
+- That paper tested on MATH benchmarks (mathematical reasoning)
+- RecPraxis RLM is for code review, security auditing, web scraping
+- Domain transfer is uncertain
+
+**Reality check**: Our compression already achieves 80-90% reduction. Distillation may provide marginal additional benefit at high complexity cost.
+
+**Mitigation**: Before implementing, benchmark actual token usage in RecPraxis RLM workflows. Measure the gap between compression and hypothetical distillation.
+
+#### Flaw 3: No Rollback/Degradation Strategy (Severity: HIGH)
+
+**Problem**: The spec assumes distillation and revision loops succeed. What if:
+- Distillation produces incorrect behaviors?
+- Revision loops make things worse?
+- The handbook becomes corrupted?
+
+**Missing**: Graceful degradation paths.
+
+**Mitigation**: Add fallback strategy:
+```
+IF behavior retrieval fails:
+    → Fall back to raw experience retrieval
+IF distillation produces low-confidence behavior:
+    → Keep as "draft" in pending_review, use raw experiences
+IF revision loop exceeds budget:
+    → Return to user with explanation, not failure
+```
+
+#### Flaw 4: Missing Cost Analysis (Severity: MEDIUM)
+
+**Problem**: Distillation requires LLM calls. The spec doesn't estimate costs.
+
+**Rough estimate**:
+- Distilling 100 experiences → ~100 LLM calls
+- At ~$0.003/1k tokens (GPT-4o-mini), ~2k tokens/call → ~$0.60
+- Distilling 10,000 experiences → ~$60
+
+**Question**: Is this cost acceptable? For some users yes, for others no.
+
+**Mitigation**: Add cost estimates and make distillation opt-in with budget caps.
+
+#### Flaw 5: Provider Lock-in (Severity: MEDIUM)
+
+**Problem**: Cache-aware architecture assumes Anthropic/OpenAI prompt caching. But:
+- Local models (Ollama, vLLM) don't have this
+- Some cloud providers don't support it
+- Caching behavior varies by provider
+
+**Mitigation**: Make cache-aware optimization a pluggable strategy, not hardcoded. Detect provider capabilities at runtime.
+
+#### Flaw 6: Pre-defined Taxonomy Won't Transfer (Severity: MEDIUM)
+
+**Problem**: The skill taxonomy in Section 3.2 is pre-defined for web scraping, data processing, etc. But:
+- ML debugging has different skills
+- DevOps has different skills
+- Security has different skills
+
+**Mitigation**: Make taxonomy extensible/configurable. Or: Drop taxonomy in favor of pure embedding-based clustering (no predefined labels).
+
+#### Flaw 7: 16-Week Roadmap Has No Dependencies (Severity: LOW)
+
+**Problem**: The roadmap lists 6 phases but doesn't show:
+- Which phases can be parallelized
+- Critical path dependencies
+- Resource requirements
+
+**Mitigation**: Add dependency graph and critical path analysis.
+
+### What the MVP Should Actually Be
+
+Based on this critique, the Minimum Viable Enhancement is:
+
+```
+MVP Scope (4 weeks instead of 16):
+├─ BehaviorHandbook with file-based storage
+├─ Manual behavior creation CLI (no distillation)
+├─ Progressive disclosure for handbook
+├─ Integration with recall() to prioritize behaviors
+└─ Telemetry to measure actual usage patterns
+
+NOT in MVP:
+├─ Automatic distillation (wait for usage data)
+├─ Skill labeling/taxonomy (unvalidated benefit)
+├─ Revision loops (high complexity, uncertain ROI)
+└─ Subagent generation (cool but not core)
+```
+
+### Validation Before Full Implementation
+
+Before building the full spec, we should:
+
+1. **Measure current pain points**: Survey 5-10 users on actual token/cost issues
+2. **Prototype handbook**: Build minimal version, measure adoption
+3. **A/B test distillation**: Compare distilled vs. compressed experiences
+4. **Collect failure modes**: Run distillation on 100 experiences, review quality
+
+### Revised Success Criteria
+
+| Metric | Original Target | Revised Target | Rationale |
+|--------|-----------------|----------------|-----------|
+| Token reduction | 30-50% | 20% incremental | Already have 80-90% from compression |
+| Implementation time | 16 weeks | 4 weeks (MVP) | De-risk with smaller scope |
+| Behaviors created | 1000+ | 100 (manual) | Validate usefulness first |
+| User adoption | N/A | 50% of active users | New metric: is this even wanted? |
+
+---
+
+## 11. Appendices
+
+### 11.1 Glossary
 
 | Term | Definition |
 |------|------------|
@@ -1731,7 +1866,7 @@ tests/
 | Revision Loop | Iterative improvement process when initial plan fails |
 | Trajectory | Sequence of (action, observation, reasoning) steps from agent execution |
 
-### 9.2 Reference Architecture
+### 11.2 Reference Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -1765,7 +1900,7 @@ tests/
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 9.3 Configuration Schema
+### 11.3 Configuration Schema
 
 ```python
 @dataclass
@@ -1807,7 +1942,7 @@ class MetacognitiveConfig:
     emit_metrics: bool = True
 ```
 
-### 9.4 Migration Guide (v0.9.x → v2.0)
+### 11.4 Migration Guide (v0.9.x → v2.0)
 
 ```markdown
 ## Migrating to RecPraxis RLM v2.0
@@ -1829,7 +1964,7 @@ class MetacognitiveConfig:
 5. Enable revision loops in config
 ```
 
-### 9.5 Security Considerations
+### 11.5 Security Considerations
 
 | Component | Threat | Mitigation |
 |-----------|--------|------------|
@@ -1839,7 +1974,7 @@ class MetacognitiveConfig:
 | Behaviors | Code injection | No executable code in behaviors |
 | Search | ReDoS | Existing ReDoS protection applies |
 
-### 9.6 Open Questions for Discussion
+### 11.6 Open Questions for Discussion
 
 1. **Behavior Versioning**: Should we support multiple versions of the same behavior, or always replace?
 
